@@ -23,7 +23,7 @@
 | 实施合同 | `docs/superpowers/plans/2026-08-10-embodied-intelligence-research-workbench.md` | 技术栈、数据合同、Tasks 0–12、测试和发布门禁 |
 | 仓库入口摘要 | `README.md` | 产品定位和原则；其中“实施计划待编写”已被更新的实施计划取代 |
 
-冲突时采用最新的人类授权规则：候选预览只可使用来源可访问、具有直接原文摘录、未被剔除的候选证据，并显著显示引用、风险和待确认状态；预览不可导出。正式/可导出简报只可使用用户已确认的证据。
+冲突时采用最新的人类授权规则：候选预览允许的 `ReviewStatus` 恰为 `{pending, needs_edit, confirmed}`，且记录必须来源可访问、具有非空直接原文摘录、具有 `source_url` 或 `source_reference`、并非 `discarded`。预览显著说明“可能包含未确认证据”，逐条显示实际审核状态、引用和风险，不得导出或下载。正式/可导出简报只可使用用户已确认的证据。
 
 ### 变更记录
 
@@ -166,8 +166,8 @@ Task 10 的同一基线任务为：“为一次内部项目讨论，形成中国
 1. 每条关键结论都可回溯到原始证据、来源日期和统计口径。
 2. 没有直接原文支持时返回“证据不足”，不得补写事实。
 3. 数值或定义冲突并列显示，不平均、不擅自选边。
-4. 来源不可访问或缺少直接引文的记录不得确认，也不得进入任何简报模式。
-5. 候选预览可减少审核负担，但必须待审核、不可导出、逐句显示引用/风险/状态。
+4. 来源不可访问、缺少非空直接引文或缺少 URL/local reference 的记录不得确认，也不得进入任何简报模式。
+5. 候选预览可减少审核负担；允许状态恰为 `{pending, needs_edit, confirmed}`，但每条记录还须 accessible、有非空 direct quote、有 URL/local reference 且非 discarded；banner 说明可能含未确认证据，逐条显示实际状态、引用和风险，并且不可导出。
 6. 正式输出只读取 `confirmed` 证据，句子无法映射时阻断或删除。
 7. 人工编辑、确认、待修改和剔除均留痕；允许人工兜底但不得伪装成全自动。
 8. 产品面向作品集和真实验证，不以当前创业付费验证为目标。
@@ -190,8 +190,8 @@ flowchart TD
     F -- "是" --> I["结构化证据与确定性质检"]
     I --> J["风险优先证据矩阵"]
     J --> K{"输出路径"}
-    K -- "候选预览" --> L["仅可访问且有直接引文的未剔除证据"]
-    L --> M["待审核、不可导出；显示引用、风险、状态"]
+    K -- "候选预览" --> L["状态为 pending、needs_edit 或 confirmed；且可访问、有引文、有 reference、非 discarded"]
+    L --> M["可能含未确认证据、不可导出；显示实际状态、引用、风险"]
     M --> J
     K -- "正式简报" --> N{"关键事实已由用户确认？"}
     N -- "否" --> J
@@ -216,14 +216,14 @@ flowchart TD
 
 ## 10. 功能需求
 
-**决策：以下 40 项 `FR` 是 MVP 可验收的功能基线；每项均映射到 owning task。**
+**决策：以下 42 项 `FR` 是 MVP 可验收的功能基线；每项均映射到 owning task。**
 
 | ID | 优先级 | 需求 | 可验证验收标准 | Owning task |
 |---|---|---|---|---|
 | FR-001 | P0 | 创建研究项目 | 表单持久化 `topic`、`geography`、`time_range`、`purpose`、`focus_questions`，默认主题为“具身智能”、地域为“中国为主，全球对照” | Task 3 |
 | FR-002 | P0 | 五阶段导航 | 应用仅展示研究需求、研究框架、资料来源、证据矩阵、研究简报五页，且项目 ID 在页面切换后保持 | Task 1 |
-| FR-003 | P0 | 项目阶段持久化 | 重启 repository 后可恢复项目、框架、来源、证据、简报和最新 checkpoint | Task 2 |
-| FR-004 | P0 | 补充项总量限制 | 文件与 URL 合计恰好 5 项通过，6 项返回 `too_many_items` | Task 3 |
+| FR-003 | P0 | 项目阶段持久化 | 关闭第一个 `WorkbenchRepository` 实例后，以同一 SQLite file path 新建第二个实例；后者恢复项目、框架、来源、证据、简报和最新 checkpoint。该验收不指 container redeploy | Task 2 |
+| FR-004 | P0 | 补充项总量限制 | 文件与 URL 合计为 0、1、2、3、4、5 项均通过；任意 `>=6` 项返回 `too_many_items` | Task 3 |
 | FR-005 | P0 | 文件类型与大小限制 | 仅 `.pdf`、`.txt`、`.md`；20 MiB 通过，20 MiB + 1 byte 失败；URL 计入 5 项 | Task 3 |
 | FR-006 | P1 | 补充材料提取与选段 | PDF 按页标记 `[filename p.N]`；扫描 PDF 无文本返回 `parse_failed`；上下文不超过 80,000 字符并报告省略 chunk 数 | Task 3 |
 | FR-007 | P0 | 生成固定七维框架 | 输出七个且仅七个维度，每维 3–6 题，总计 21–42 个唯一 ID，priority 为 1–3，初始 `approved=false` | Task 5 |
@@ -238,12 +238,12 @@ flowchart TD
 | FR-016 | P0 | 自动质量评估 | 对缺引文、不可访问、关键字段缺失、lead-only、来源偏差、标题正文不符和解析失败应用确定性标签 | Task 7 |
 | FR-017 | P0 | 数值/定义冲突检测 | 同问题+地域+时期+单位+口径的不同数值标 `value_conflict`；去掉口径后的组含多个非空口径标 `definition_conflict`，记录保持分离 | Task 7 |
 | FR-018 | P0 | 时效规则 | company/commercialization/financing/competition 超过 12 个月、market/supply_chain 超过 24 个月标 `possibly_stale`；technical_principle/history/standard 自动豁免 | Task 7 |
-| FR-019 | P0 | 风险优先证据矩阵 | 默认依次排序 blocked、conflicts、stale、incomplete、clean pending、confirmed、discarded；详情显示引文、URL、日期、口径及每个标签原因 | Task 7 |
-| FR-020 | P0 | 证据审核动作 | 用户可设为 `confirmed`、`needs_edit` 或 `discarded`，并可显式批量确认满足门禁的干净记录 | Task 7 |
+| FR-019 | P0 | 风险优先证据矩阵 | 确定性排序为：`discarded` 最后、`confirmed` 位于全部非最终记录之后；其余依次 `blocked > conflict > stale > incomplete > clean pending`。`blocked`=因 missing/inaccessible/no quote/no reference 不能确认；`conflict`=definition/value conflict；`stale`=`possibly_stale` 且无更高类；`incomplete`=`missing_key_field` 或其他非阻断风险；`clean pending`=`can_confirm=true` 且 `risk_flags` 为空。固定 fixture 的排序断言通过 | Task 7 |
+| FR-020 | P0 | 证据审核动作 | 用户可设为 `confirmed`、`needs_edit` 或 `discarded`；批量确认只接受 `review_status=pending`、`can_confirm=true`、`risk_flags` 为空的 clean pending 记录，并为每个 evidence ID 分别写一条审核 event；混入不合格记录的测试不得确认该记录 | Task 7 |
 | FR-021 | P0 | 确认阻断 | 缺直接引文、来源不可访问或无 URL/local reference 的记录尝试确认后仍为 `pending` 并显示原因 | Task 1 / Task 7 |
 | FR-022 | P1 | 人工变更留痕 | 每次 edit/confirm/needs-edit/discard 记录 evidence ID、前后状态、变更字段和 UTC 时间 | Task 7 / Task 10 |
-| FR-023 | P0 | 候选预览资格 | 预览只接收可访问、有非空直接引文、未被剔除的记录；没有合格记录时不提供生成动作 | Task 8 |
-| FR-024 | P0 | 预览显著隔离 | 首行显示“待审核、不可导出预览”；每个事实句显示证据 ID、风险和 pending/unconfirmed 状态；界面无复制为正式、下载或导出控件 | Task 8 |
+| FR-023 | P0 | 候选预览资格 | 允许的 `ReviewStatus` 恰为 `{pending, needs_edit, confirmed}`，且每条记录同时满足 `source_accessible=true`、非空 `evidence_quote`、至少一个 `source_url`/`source_reference`、状态非 `discarded`；状态/字段组合的正反参数化测试通过，无合格记录时不提供生成动作 | Task 8 |
+| FR-024 | P0 | 预览显著隔离 | banner 显示“待审核、不可导出预览；可能包含未确认证据”；每个事实句显示证据 ID、风险和所用记录的实际 `pending`/`needs_edit`/`confirmed` 状态；界面无复制为正式、下载或导出控件 | Task 8 |
 | FR-025 | P0 | 正式简报资格 | 正式模式唯一输入为 `review_status=confirmed` 的证据；没有确认证据时正式生成不可用 | Task 8 |
 | FR-026 | P0 | 逐句证据映射 | 每个事实句映射至少一个允许的稳定 evidence ID；仅标题和明确“现有可用证据不足”句可为空数组 | Task 8 |
 | FR-027 | P0 | 简报本地验证 | 未知 ID、模式不合格证据或未映射事实句使结果 blocked；显示阻断句并返回证据审核，不显示下载控件 | Task 8 |
@@ -252,14 +252,16 @@ flowchart TD
 | FR-030 | P0 | 中断与恢复 | plan/evidence/brief 均写 running/succeeded/failed checkpoint；失败保留上次成功结果和 completed IDs，并提供从失败模块继续的动作 | Tasks 2, 5, 6, 8 |
 | FR-031 | P0 | 30 题评测集 | 恰好 30 题，五类各 6 题；每题包含 required fields、severe rules 和人工 gold source/claim 数据 | Task 9 |
 | FR-032 | P0 | 离线与实时评测模式 | fixture 模式不发网络请求；live 模式必须显式 `--confirm-live-cost` 且有 secrets | Task 9 |
-| FR-033 | P0 | 指标与门槛判定 | 输出逐题失败、聚合率、严重错误数和 PASS/FAIL；分母为 0 返回 `None` 并以 `insufficient_sample` 失败 | Task 9 |
+| FR-033 | P0 | 指标与门槛判定 | 严格按第 19 节 counting contract 输出逐题失败、abstention、聚合率、严重错误题数/类型和 PASS/FAIL；任一比例分母为 0 返回 `None` 并以 `insufficient_sample` 失败；固定 fixture 对每个分子、分母和严重错误去重结果逐项断言 | Task 9 |
 | FR-034 | P1 | 本地 telemetry | 记录十个指定事件、UTC 时间，并由事件计算阶段耗时，不使用 Streamlit session uptime | Task 10 |
-| FR-035 | P0 | telemetry 隐私阻断 | payload 含 `api_key`、`token`、`secret`、`document_text` 或 `evidence_quote` 即拒绝；用户标识只接受 `UT-__` session code 而非 email | Task 10 |
-| FR-036 | P1 | 45 分钟可用性测试包 | 协议按 0–5/5–10/10–30/30–35/35–40/40–45 分钟执行并导出匿名行为字段 | Task 10 |
+| FR-035 | P0 | telemetry 隐私阻断 | 每个 event 使用独立字段 allowlist；payload 出现 unknown key、任意 raw free text、`api_key`、`token`、`secret`、`document_text` 或 `evidence_quote` 即拒绝；用户标识只接受 `UT-__` session code 而非 email；参数化 privacy test 覆盖允许与拒绝字段 | Task 10 |
+| FR-036 | P1 | 45 分钟可用性测试包 | Task 10 定义并测试 0–5/5–10/10–30/30–35/35–40/40–45 分钟的协议、consent 和匿名输出 contract；Task 12 按该协议执行 3–5 个真实 session，并验证匿名汇总字段 | Tasks 10, 12 |
 | FR-037 | P0 | 无供应商 CI | push/PR 到 `main` 时在 Python 3.12、15 分钟超时、无 provider secrets 环境运行 lint、pytest coverage、workflow validation 和 fixture eval | Task 11 |
 | FR-038 | P0 | 三个完整 AppTest 场景 | S1–S3 均创建项目、批准七维框架、载入证据、阻断一条无效确认、确认一条有效记录、生成映射简报并出现两个正式下载按钮；断言无网络 | Task 11 |
 | FR-039 | P1 | 显式 live smoke | 仅在用户批准费用后，以显式 workflow selector 跑一条小请求；schema/guardrail 失败返回非零，日志不泄露密钥 | Task 11 |
 | FR-040 | P0 | 真实用户结果与案例 | 至少 3 个完整 session 后，仓库只保存匿名汇总；案例仅写实测聚合值、失败类别、未达标项和下一实验 | Task 12 |
+| FR-041 | P0 | 项目/session 删除 | 提供按 project ID 与 `UT-__` session code 删除测试数据的操作；删除后重新打开同一 SQLite path，查询 projects、framework、sources、evidence、briefs、checkpoints、events 均无目标记录，并输出不含原始内容的 deletion verification | Task 10 |
+| FR-042 | P0 | 测试 session 备份/恢复 | 每个完成 session 后立即将 SQLite session backup 导出至 operator-controlled encrypted local storage，排除 secrets、uploads、raw provider payloads；Task 11 在 temporary DB 上执行 backup→删除/重建→restore 并核对记录计数与关键 ID | Task 11 |
 
 ## 11. 非功能需求
 
@@ -271,12 +273,12 @@ flowchart TD
 | NFR-002 | Security | P0 | HTTP 错误字符串不含 API key；Authorization header 被编辑，provider response 在错误中截断；相应单元测试/live smoke 通过 | Tasks 4, 11 |
 | NFR-003 | Security | P0 | 用户测试部署保持 private，仅邀请 3–5 名测试者；发布清单由人确认 | Task 11 |
 | NFR-004 | Privacy | P0 | 仅使用 `DV-__`/`UT-__`；不记录姓名、雇主、客户、交易、邮箱、联系方式或机密材料；人工 staging 前检查通过 | Tasks 0, 10, 12 |
-| NFR-005 | Privacy | P0 | event payload 不保存完整上传文档、直接引文或 secrets；隐私拒绝测试通过 | Task 10 |
-| NFR-006 | Privacy | P1 | 用户测试结果只提交规定的匿名汇总列，raw provider payload 与本地 eval run 不入 Git | Tasks 9, 12 |
+| NFR-005 | Privacy | P0 | telemetry 每个 event 采用字段 allowlist、拒绝 unknown keys 和 raw free text；不保存完整上传文档、直接引文或 secrets；参数化隐私拒绝测试通过 | Task 10 |
+| NFR-006 | Privacy | P1 | 用户测试结果只提交规定的匿名汇总列；raw provider payload、本地 eval run 和原始研究笔记不入 Git | Tasks 9, 12 |
 | NFR-007 | Reliability | P0 | 数据替换使用显式 SQLite transaction、WAL、foreign keys；rollback 测试证明失败不破坏旧结果 | Task 2 |
 | NFR-008 | Reliability | P0 | workflow completion 以 run ID 幂等；重复回调不生成逻辑重复记录 | Task 6 |
-| NFR-009 | Reliability | P0 | 429/500/502/503/504 与 transport error 最多两次总尝试；失败保留上次验证结果并显示可重试动作 | Tasks 4, 5, 6, 8 |
-| NFR-010 | Performance/Cost | P1 | Dify blocking call timeout 为 60 秒，重试延迟 0.5 秒后 1 秒且总尝试不超过 2 | Task 4 |
+| NFR-009 | Reliability | P0 | HTTP 自动重试只适用于 429/500/502/503/504 与 transport error；最多 2 次总尝试，即 initial attempt + 至多 1 次 retry，单次 retry 前等待 0.5 秒。其他 4xx、schema failure、guardrail failure 不重试；失败保留上次验证结果并显示适用的恢复动作。mock transport 精确断言 call count 与不可重试状态 | Task 4 |
+| NFR-010 | Performance/Cost | P1 | 每次 Dify blocking call timeout 为 60 秒；自动 policy 为 initial attempt + 至多一次 retry，retry 前固定等待 0.5 秒，不允许第二次 retry；timeout/attempt/delay 单元测试通过 | Task 4 |
 | NFR-011 | Performance/Cost | P1 | 证据 workflow 批量问题 parallelism=3；每问题最多 15 个原始搜索结果并在提取前 URL 去重 | Task 6 |
 | NFR-012 | Performance/Cost | P0 | 补充上下文上限 80,000 chars；实时调用前显示供应商和费用影响并取得用户批准 | Tasks 3, 9, 11 |
 | NFR-013 | Accessibility/UX | P1 | 主界面为中文，技术 ID 保持稳定；五页均有标题和当前任务说明，AppTest 可按明确 key 找到核心动作 | Tasks 1, 5–8 |
@@ -285,6 +287,11 @@ flowchart TD
 | NFR-016 | Observability | P0 | 每个 workflow 保存 status、run ID、completed unit IDs、sanitized error 与 UTC updated_at；页面显示最新 checkpoint | Tasks 2, 5, 6, 8 |
 | NFR-017 | Observability | P1 | 人工审核和十个产品事件可按 project/session 导出并计算阶段耗时；无敏感 payload | Tasks 7, 10 |
 | NFR-018 | Observability | P0 | CI 和 eval 输出精确测试计数、指标、严重错误和阈值状态；fixture 结果不得被描述为 live quality | Tasks 9, 11 |
+| NFR-019 | Privacy | P0 | exact repeat-use answer 仅写入 gitignored、operator-controlled local research note；24 小时内人工去标识并转为 `would_reuse` 类别及非识别性 `top_value`/`top_blocker` 释义，原始笔记最迟 14 天删除；session checklist 记录 redaction/deletion 时间而不复制原文 | Tasks 10, 12 |
+| NFR-020 | Privacy | P0 | raw upload 不持久化；临时文件在 session 结束时删除并验证不存在。consent 明示选定 snippets 会由 Dify/Tavily/OpenAI 处理并禁止上传机密内容；provider retention 遵循各自条款，作为已披露的人类拥有风险 | Tasks 3, 10, 11 |
+| NFR-021 | Privacy | P0 | 测试 SQLite 数据在最后一个 session 后最多保留 30 天，或应参与者请求更早删除；删除前导出匿名 aggregate，删除后运行 FR-041 verification；retention register 只保存期限和删除状态 | Tasks 10, 12 |
+| NFR-022 | Reliability | P0 | Streamlit Community Cloud 本地 SQLite 明确视为 ephemeral、不是 durable system of record；每个完成 session 后立即备份至 operator-controlled encrypted local storage。RPO 至多一个进行中 session，RTO 为 30 分钟完成 redeploy/reinitialize/restore；Task 11 temporary-DB restore drill 在 release 前通过 | Task 11 |
+| NFR-023 | Privacy | P0 | session backup 不含 secrets、uploads、raw provider payloads，最后测试后保留最多 30 天再删除；如 operator 无法保证加密备份、RPO/RTO 或删除，部署 gate 判 blocked，改用 durable store 属于 MVP 外部决策 | Tasks 11, 12 |
 
 ## 12. 产品状态模型与审核状态转换
 
@@ -335,7 +342,7 @@ stateDiagram-v2
 | `WorkflowCheckpoint` | project_id, workflow, run_id, status, completed_unit_ids, sanitized error, updated_at | 每个 workflow 保留最新恢复点 |
 | `BriefBundle` | project_id, mode, markdown, claim_evidence_map, created_at | `preview|formal`；多条 mapping 指向 evidence |
 | `ClaimEvidenceMap` | sentence, evidence_ids | 每个事实句至少一个允许 ID；标题/明确证据缺口例外 |
-| `Event` | project/session, event_name, safe payload, UTC timestamp | 不含 secret、document_text 或 evidence_quote |
+| `Event` | project/session, event_name, per-event allowlisted categorical/numeric payload, UTC timestamp | 拒绝 unknown key、raw free text、secret、document_text 或 evidence_quote |
 
 关键枚举：
 
@@ -371,7 +378,7 @@ flowchart LR
     U["Boutique-FA intern / junior analyst"] --> ST["Streamlit 1.51.0 workbench"]
     UF["Uploaded PDF/TXT/Markdown"] --> ING["Local parser and chunk selector"]
     ING --> ST
-    ST <--> DB["SQLite repository"]
+    ST <--> DB["Ephemeral SQLite repository"]
     ST --> DP["Dify planning workflow"]
     ST --> DE["Dify evidence workflow"]
     ST --> DBR["Dify brief workflow"]
@@ -381,10 +388,11 @@ flowchart LR
     DBR --> OAI
     ST --> QR["Deterministic quality and citation validators"]
     QR --> DB
+    DB --> BK["Encrypted operator-controlled session backup"]
     DB --> EX["Formal Markdown and evidence CSV export"]
 ```
 
-边界：Dify 不拥有最终事实批准；Tavily 结果仍需检查可访问性和证据支持；OpenAI 不可引入事实库外内容；uploaded files 先在本地解析和限量选段，再发送必要摘录；SQLite 是 MVP 单机事实存储。
+边界：Dify 不拥有最终事实批准；Tavily 结果仍需检查可访问性和证据支持；OpenAI 不可引入事实库外内容。uploaded files 只在临时空间解析，raw upload 不持久化；consent 后仅把必要 snippets 发送给 Dify/Tavily/OpenAI，session 结束删除临时文件。Streamlit Community Cloud 本地 SQLite 是 ephemeral runtime store，不是 durable system of record；完成 session 后立即生成不含 secrets/uploads/raw provider payloads 的加密 operator backup。
 
 ## 15. 三条 AI 工作流
 
@@ -394,7 +402,7 @@ flowchart LR
 |---|---|---|---|---|---|
 | Planning | `topic`, `geography`, `time_range`, `purpose`, `focus_questions` | `framework_json` | 中文拆解问题；七维每维 3–6 题；不搜索、不回答、不估数字 | schema：21–42 唯一 IDs、固定 dimension、priority 1–3、无额外字段 | 用户编辑/删除并批准所有保留题；每维至少一题 |
 | Evidence collection | `project_id`, `framework_json`, `supplemental_context` | `sources_json`, `evidence_json` | 每批准问题生成 2 中/1 英查询；从正文逐字引文；缺失字段不猜测 | URL dedupe、source/reference 至少一项、schema、质量/冲突/时效规则、run 幂等 | 来源可剔除；风险优先审核；关键数据确认 |
-| Brief | `project_id`, `brief_mode`, `evidence_json` | `brief_json` | 只用给定事实库；逐句写 `[EV:id]`；冲突并列；无证据章节写缺口 | mode 资格、未知 ID、逐句 mapping、blocked sentence、导出资格 | 预览继续回查；正式模式前确认事实；导出前验证通过 |
+| Brief | `project_id`, `brief_mode`, `evidence_json` | `brief_json` | 只用给定事实库；逐句写 `[EV:id]`；冲突并列；无证据章节写缺口；preview 逐条渲染实际状态 | preview 状态恰为 `{pending, needs_edit, confirmed}` 且 accessible/quote/reference/non-discarded；再检查未知 ID、逐句 mapping、blocked sentence、导出资格 | 预览继续回查；正式模式前确认事实；导出前验证通过 |
 
 所有 workflow 使用 `gpt-5.4-mini`、low reasoning、structured output。Planning 不执行搜索；Evidence extractor 不写报告；Brief editor 不做新事实发现。三个 key 分开保存为 `DIFY_PLAN_API_KEY`、`DIFY_EVIDENCE_API_KEY`、`DIFY_BRIEF_API_KEY`。
 
@@ -418,7 +426,7 @@ flowchart LR
 - “可能过旧”是提示而非自动剔除；用户说明理由后可确认。
 - 同问题同口径不同值并列；不同 `definition_scope` 永不求平均或强制合并。
 - 来源不可访问：可保留候选记录用于显示缺口，但禁止进入 preview/formal。
-- preview：accessible + direct quote + not discarded；事实句显示 citation、risk、pending/unconfirmed；无任何 export/download。
+- preview：`ReviewStatus` 恰为 `{pending, needs_edit, confirmed}`，并同时满足 accessible + non-empty direct quote + URL/local reference + not discarded；banner 明示“可能包含未确认证据”，事实句显示 citation、risk 和每条记录的实际状态；无任何 export/download。
 - formal：仅 `confirmed`；所有事实句必须映射允许 evidence ID；验证失败即阻断。
 
 ## 17. 补充文件/URL 摄取限制与处理
@@ -428,10 +436,10 @@ flowchart LR
 - 文件与 URL 合计最多 5 项；公开搜索来源不计入此额度。
 - 文件仅 PDF/TXT/Markdown；每文件上限 20 MiB（`20 * 1024 * 1024` bytes）。
 - 常量：`CHUNK_CHARS=6_000`、`CHUNK_OVERLAP=300`、`MAX_CONTEXT_CHARS=80_000`。
-- PDF 逐页提取并带 `[filename p.N]`；扫描件无文本标 `parse_failed`，不抛出阻断整个项目的异常。
+- PDF 逐页提取并带 `[filename p.N]`；扫描件无文本标 `parse_failed`，不抛出阻断整个项目的异常。raw upload 只存在于 session 临时空间，绝不写入 SQLite、telemetry 或 backup，session 结束后删除并验证文件不存在。
 - 文本按段落切块，依据问题词与 chunk 词重合排序；取最高相关 chunk 至上下文上限，并显示省略数量。
 - 用户 URL 通过 Tavily Extract；不可访问时标记失败，不阻断其余来源。
-- 文件全文不进入 telemetry，只有必要选段进入 Dify evidence workflow。
+- 文件全文不进入 telemetry；仅在用户同意 Dify/Tavily/OpenAI 外部处理并确认材料不含机密内容后，把必要选段送入 evidence workflow。
 
 ## 18. 错误、空状态、中断、重试与恢复
 
@@ -444,9 +452,10 @@ flowchart LR
 | 来源不可访问 | 保存候选元数据，禁止确认/预览/formal | 替换或补充来源 |
 | 标题与正文不匹配 | 标 `title_content_mismatch` 并优先审核 | 剔除或人工核实 |
 | 数字/定义冲突 | 并列原值、来源、地域、时期、单位、口径 | 人工判断采用或保留冲突 |
-| 关键字段缺失 | 自动重试一次；仍失败进入待处理 | 编辑、补充或剔除 |
+| 关键字段缺失 | 执行一次业务级结构化重新抽取；这不是 HTTP retry，仍失败则进入待处理 | 编辑、补充或剔除 |
 | 文件解析失败 | 标记失败文件，其他材料继续 | 替换为可解析文件 |
-| Dify/API 中断 | 写 failed checkpoint、sanitized error、completed IDs；保留旧结果 | 从失败 module/question 重试 |
+| Dify/API 瞬态中断 | 仅对 429/500/502/503/504 或 transport error 执行 initial + 至多 1 retry，retry 前等待 0.5 秒；写 checkpoint 并保留旧结果 | 自动 retry 仍失败后，从失败 module/question 人工恢复 |
+| Dify/API 非瞬态失败 | 其他 4xx、schema failure、guardrail failure 不自动重试；显示具体合规错误 | 修正输入、contract 或证据后重新发起 |
 | 简报含证据外事实 | 判为严重错误并阻断该版本 | 返回 evidence review 或重新生成 |
 | 无 preview 合格证据 | 显示原因且不显示生成按钮 | 解决访问/引文问题 |
 | 无 confirmed 证据 | 不提供 formal 生成 | 完成至少一条合格确认 |
@@ -473,11 +482,21 @@ flowchart LR
 | Task-time improvement | 同一参与者 `(participant-reported baseline total - observed product total) / participant-reported baseline total` | ≥30% |
 | Work-usable/reuse users | 完整 session 中明确认为可用于工作且回答会再次使用的人数 | 至少 3 人 |
 
-分母为 0 时，相应比例返回 `None`，不能返回 0 或 1，并以 `insufficient_sample` 判定未通过。Task-time 只比较同一参与者、同一基线任务；基线标记 participant-reported，产品时间标记 observed。小样本报告原始人数和任务，不包装为精确留存或市场结论。
+### 精确计数合同
+
+1. `total_claims` 是 `claim_evidence_map` 中的事实性句子数；标题与明确 uncertainty/abstention 句不计入。
+2. 事实句只有在至少一个 mapped quote 直接支持该句的**每个 material assertion** 时，才计入 `supported_claims`；只支持部分断言不计 supported。
+3. `total_citations` 按事实句中的 evidence-ID occurrence 计数：先在单句内去重重复 ID；同一 ID 在另一事实句再次使用时重新计一次。
+4. citation 在该 run 中 URL 可打开或 local reference 可解析时计入 `accessible_citations`。
+5. `total_numeric_claims` 是包含 numeric value、percentage 或 range 的事实句数；只有 supporting record 同时具有 geography、period、unit、definition_scope，才计入 `complete_numeric_claims`。
+6. 明确 uncertainty/abstention 句从 claim 与 numeric 分母排除，但按类别单独报告 abstention count。
+7. severe factual error 按受影响 evaluation question 去重计数：每题最多计 1，即使同题存在多个 severe failure；failure types 另行逐类报告。
+
+任一比例分母为 0 时返回 `None`，不能返回 0 或 1，并以 `insufficient_sample` 判定未通过。Task-time 只比较同一参与者、同一基线任务；基线标记 participant-reported，产品时间标记 observed。小样本报告原始人数和任务，不包装为精确留存或市场结论。
 
 ## 20. 用户研究、可用性测试、事件计划与隐私排除
 
-**决策：Task 10–12 通过匿名 session code 记录行为，不收集身份或机密业务内容。**
+**决策：Task 10–12 通过匿名 session code 和 per-event allowlist 记录行为；raw free text、上传原件和原始访谈笔记遵循短期、operator-controlled 生命周期。**
 
 ### 45 分钟协议
 
@@ -494,13 +513,26 @@ flowchart LR
 
 `project_created`、`framework_generated`、`framework_confirmed`、`evidence_started`、`evidence_completed`、`evidence_reviewed`、`brief_generated`、`brief_exported`、`task_abandoned`、`manual_intervention`。
 
-记录完成、总用时和阶段用时、人工介入、confirmed/edited/discarded 数、导出与逐字 repeat-use 回答。时间由 UTC events 推导，不由 session uptime 推导。
+记录完成、总用时和阶段用时、人工介入、confirmed/edited/discarded 数与导出。时间由 UTC events 推导，不由 session uptime 推导。telemetry 每种事件只接受预定义的 categorical/numeric/ID 字段；unknown key 或 raw free text 直接拒绝。
 
-隐私排除：姓名、雇主、客户、交易、项目代号、邮件、联系方式、机密文档、API key/token/secret、完整 `document_text` 和 `evidence_quote`。仓库只保留匿名汇总；上传客户材料不得进入测试数据或 Git。
+### Consent 与外部处理
+
+- 开始测试前明确说明：只有用户选择的 snippets 会发送给 Dify/Tavily/OpenAI 处理；外部 provider 的 retention 依各自条款，属于已披露、由人管理的剩余风险。
+- consent 明确禁止上传任何客户、交易、雇主或其他机密材料；不同意外部处理则不进入带 provider 的产品测试。
+- raw uploads 不持久化，临时文件在 session 结束时删除并验证不存在。
+
+### Free text、保留与删除生命周期
+
+- exact repeat-use answer 仅存在于 gitignored、operator-controlled local research note，不进入 telemetry、SQLite、backup 或 Git。
+- operator 在 24 小时内人工去标识，将其转成 categorical `would_reuse`，并将 `top_value`/`top_blocker` 写成非识别性释义；原始 note 在 14 天内删除。
+- 测试 SQLite 与加密 session backups 在最后一个 session 后最多保留 30 天，或按参与者请求更早删除；删除前先导出匿名 aggregate。
+- 产品提供按 project/session 删除，随后针对同一 SQLite path 验证所有关联表无目标记录；retention/deletion register 仅记录到期日和验证状态，不复制原始内容。
+
+隐私排除：姓名、雇主、客户、交易、项目代号、邮件、联系方式、机密文档、API key/token/secret、完整 `document_text`、`evidence_quote` 和任何未去标识 raw free text。仓库只保留允许的匿名汇总；上传客户材料不得进入测试数据、backup 或 Git。
 
 ## 21. 技术栈与仓库架构
 
-**实施选择：当前技术栈固定为 Python 3.12、Streamlit 1.51.0、Dify Cloud、Tavily plugin 0.1.11、OpenAI `gpt-5.4-mini` low reasoning、SQLite、Pydantic、HTTPX、pandas、pypdf、pytest、AppTest、Ruff、GitHub Actions、Streamlit Community Cloud。**
+**实施选择：当前技术栈固定为 Python 3.12、Streamlit 1.51.0、Dify Cloud、Tavily plugin 0.1.11、OpenAI `gpt-5.4-mini` low reasoning、SQLite、Pydantic、HTTPX、pandas、pypdf、pytest、pytest-cov、AppTest、Ruff、GitHub Actions、Streamlit Community Cloud。**
 
 ```text
 streamlit_app.py                 # 五页入口
@@ -517,7 +549,7 @@ tests/fixtures/ + tests/test_*.py
 docs/{discovery-interviews,runbook,user-test-script,portfolio-case-study}.md
 .github/workflows/ci.yml
 .streamlit/config.toml
-requirements.txt + requirements-dev.txt
+requirements.txt + requirements-dev.txt  # dev includes pytest, pytest-cov, Ruff, jsonschema
 ```
 
 Streamlit 是 server layer；Dify key 不暴露给客户端。所有自动测试不调用 live Dify/Tavily/OpenAI，live smoke 单独显式执行。
@@ -532,16 +564,16 @@ Streamlit 是 server layer；Dify key 不暴露给客户端。所有自动测试
 | 2 | Task 1–2 | foundation、domain contracts、SQLite | Task 0 go | 范围无新增 persona/功能 |
 | 3 | Task 3 | 补充材料验证/解析 | domain/storage | 上传资料不含机密测试数据 |
 | 4 | Task 4 | Dify client、JSON schema、contract validator | provider contract | Dify 账户与三个 key 由人创建 |
-| 5–6 | Task 5 | planning workflow 与 framework gate | Task 4 | 在 Dify 测试并导出 DSL |
-| 7–8 | Task 6 | Tavily evidence workflow 与 source page | Tasks 3–5 | 安装 Tavily 0.1.11、批准使用 key/费用 |
+| 5–6 | Task 5 | planning workflow 与 framework gate | Tasks 1, 2, 4 | 在 Dify 测试并导出 DSL |
+| 7–8 | Task 6 | Tavily evidence workflow 与 source page | Tasks 3, 4, 5 | 安装 Tavily 0.1.11、批准使用 key/费用 |
 | 9 | Task 7 | deterministic quality、review queue | Task 6 | 复核风险文案和人工修改语义 |
 | 10 | Task 8 | preview/formal、citation guardrail、exports | Task 7 | 确认预览不可导出、formal 硬门禁 |
 | 11 | Task 9 | 30 题 benchmark 与 eval runner | Tasks 4–8 | 人工 gold 与 severe-error rules |
-| 12 | Task 10 | telemetry 与 user-test protocol | 可运行 MVP | 同意、匿名字段和测试招募 |
-| 13 | Task 11 | CI、runbook、三 E2E、live smoke、部署 | Tasks 1–10 | 账户/密钥/费用、private deploy、release approval |
-| 14–15 | Task 12 | 3–5 sessions、live eval、案例 | release gate | 至少 3 完整 session、人工检查匿名结果与结论真实性 |
+| 12 | Task 10 | telemetry、删除能力、user-test protocol 定义/测试 | 可运行 MVP | consent、匿名字段、retention 与测试招募 |
+| 13 | Task 11 | CI、runbook、三 E2E、live smoke、backup/restore drill、部署 | Tasks 1–10 | 账户/密钥/费用、private deploy、ephemeral SQLite recovery、release approval |
+| 14–15 | Task 12 | 执行 3–5 sessions、live eval、案例 | release gate | 至少 3 完整 session、人工检查匿名结果与结论真实性 |
 
-Task 依赖主链：`0 → 1 → 2 → 3/4 → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12`。若 Day 15 未完成用户测试，可延后 Task 12，但不得提前宣称 validated user value。
+Task 依赖图：`0 → 1 → 2 → (3 and 4 in parallel) → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12`。其中 Task 5 明确依赖 Tasks 1、2、4；Task 6 明确依赖 Tasks 3、4、5。若 Day 15 未完成用户测试，可延后 Task 12，但不得提前宣称 validated user value。
 
 ## 23. 部署、密钥、CI、发布门禁与回滚/恢复
 
@@ -553,6 +585,7 @@ Task 依赖主链：`0 → 1 → 2 → 3/4 → 5 → 6 → 7 → 8 → 9 → 10 
 2. 导入三份 workflow YAML，每条 workflow 创建独立 API key。
 3. 本地 key 仅放 `.streamlit/secrets.toml`；部署 key 仅放 Streamlit Community Cloud Secrets；均不提交 Git。
 4. 私有 GitHub repo 连接 Streamlit Community Cloud，选择 Python 3.12 和 `streamlit_app.py`；测试期间保持 private，只邀请 3–5 人。
+5. 将 Community Cloud local SQLite 明确配置为 ephemeral runtime store；operator 准备 encrypted local backup 位置与 30 天删除日程。若无法满足 backup、RPO/RTO 或删除保证，部署状态为 blocked；采用 durable store 需另行决策且不在 MVP 范围。
 
 ### CI / release gate
 
@@ -563,15 +596,19 @@ python scripts/validate_workflows.py workflows
 python scripts/run_eval.py --mode fixture --input tests/fixtures/eval_run.json
 ```
 
-四条命令必须 exit 0；CI 15 分钟超时且无 provider secrets。随后在明确费用批准下运行 `python scripts/smoke_live.py --workflow all --confirm-live-cost`。只有 schema、guardrail、三个 E2E、fixture eval 和 live smoke 均通过，且无 secret 日志，才允许私有测试发布。
+四条命令必须 exit 0；CI 15 分钟超时且无 provider secrets。随后在明确费用批准下运行 `python scripts/smoke_live.py --workflow all --confirm-live-cost`。Task 11 还必须用 temporary DB 完成 backup→删除/重建→restore drill，核对记录计数和关键 IDs，并验证 backup 不含 secrets/uploads/raw provider payloads。只有 schema、guardrail、三个 E2E、fixture eval、restore drill 和 live smoke 均通过，且无 secret 日志，才允许私有测试发布。
 
 ### 回滚与恢复
 
 - workflow 失败不覆盖上次成功数据；checkpoint 保留 failed module 和 completed IDs。
 - SQLite replacement 使用事务；失败自动回滚至旧记录。
 - brief 失败保留上一版已验证结果；未通过新结果不显示下载。
+- Community Cloud local SQLite 丢失按设计视为可能事件：每个**已完成**用户 session 后立即导出 encrypted operator-controlled session backup；进行中的 session 可能尚未备份，因此 `RPO <= 1 in-progress session`。
+- `RTO = 30 minutes`：在 30 分钟内 redeploy/reinitialize、从最近 backup restore、核对关键 IDs/记录数并恢复私有测试入口。
+- backup 不含 secrets、raw uploads、raw provider payloads 或 exact research notes；在最后测试后最多保留 30 天，之后删除并记录 verification。
+- 项目/session 删除请求优先于一般保留期：先导出允许的匿名 aggregate，再删除 DB/适用 backup 并在同一路径重新查询验证。
 - 供应商变更或 workflow regression 时，回滚到最近通过 contract validator、fixture eval 和 smoke 的版本；恢复后重新跑完整 release gate。
-- 不把本地 SQLite、raw eval runs、secrets 或上传材料作为 Git 回滚资产。
+- 不把本地 SQLite、session backup、raw eval runs、secrets 或上传材料作为 Git 回滚资产。
 
 ## 24. 风险、权衡、假设、缓解与开放问题
 
@@ -586,8 +623,9 @@ python scripts/run_eval.py --mode fixture --input tests/fixtures/eval_run.json
 | 审核负担 | 逐条复核可能比原流程慢 | 风险优先排序、候选预览、干净记录显式批量确认；实测任务时间 |
 | 成本/延迟 | Dify/Tavily/OpenAI 费用与 blocking timeout | 结果上限、URL dedupe、上下文预算、显式费用确认、fixture-first |
 | 供应商依赖 | plugin/API/模型可用性或 schema 变化 | typed client、workflow contract validator、smoke、保留 checkpoints |
-| 隐私 | 用户上传机密材料或 telemetry 泄露 | 私有测试、最小选段、禁止敏感 payload、人工 staging 检查 |
-| 取舍 | Streamlit/SQLite 适合 B-lite 单用户验证，不支持多租户 | 明确排除账号/权限/协作；验证后再评估架构 |
+| 隐私 | 用户上传机密材料、raw free text/临时文件泄露或 provider retention 不可控 | 明示外部 snippet processing、禁止机密上传、per-event allowlist、24h redaction/14d raw-note deletion、session-end temp deletion、provider 条款作为 disclosed risk |
+| 数据耐久 | Community Cloud local SQLite 可能随 redeploy 丢失 | 每完成 session 立即 encrypted operator backup、temporary-DB restore drill、`RPO <= 1 in-progress session`、`RTO=30 minutes`；无法保证则阻断部署 |
+| 取舍 | Streamlit/ephemeral SQLite 适合 B-lite 单用户验证，不支持多租户或 durable primary store | 明确排除账号/权限/协作；验证后再评估 durable store |
 | 结果表述 | 目标指标被误写为已达成 | 文档统一标为目标；Task 12 仅使用实际测量值 |
 
 开放问题（均不阻塞当前开发）：
@@ -606,17 +644,18 @@ python scripts/run_eval.py --mode fixture --input tests/fixtures/eval_run.json
 
 - 五页导航与 task/framework/source/evidence/brief 主状态可演示。
 - 可用 fake provider data 完成三个标准场景。
-- preview/formal 可见分流，且 preview 无导出。
+- preview/formal 可见分流；preview banner 说明可能包含未确认证据，逐条显示实际状态且无导出。
 - 无假结果或把目标指标写成已达成。
 
 ### MVP DoD
 
 1. 用户可从任务输入走到证据矩阵、待审核不可导出预览和正式可导出简报。
-2. preview 仅用 accessible + direct quote + not discarded，显示引用/风险/待确认；formal 仅用 confirmed。
+2. preview 状态恰为 `{pending, needs_edit, confirmed}` 且每条记录满足 accessible + non-empty direct quote + URL/local reference + not discarded，显示引用/风险/实际状态并明示可能含未确认证据；formal 仅用 confirmed。
 3. 来源不可访问、数字冲突、字段缺失、流程中断四类异常均有可观察处理。
 4. 30 题离线评测与三个 E2E 场景已执行并留存真实结果。
-5. 完整 CI、workflow validation、fixture eval 和获批 live smoke 通过。
+5. 完整 CI、workflow validation、fixture eval、获批 live smoke 与 temporary-DB backup/restore drill 通过；restore 满足 `RPO <= 1 in-progress session`、`RTO=30 minutes`。
 6. 若尚无至少 3 名用户完成测试，产品可称“技术 MVP”，但不可称“已验证用户价值”。
+7. consent、event allowlists、session-end temp deletion、project/session deletion verification、24h/14d/30d retention controls 已测试；若 ephemeral SQLite recovery 保证不可满足，则 private deployment 保持 blocked。
 
 ### Validated portfolio case study DoD
 
@@ -649,16 +688,16 @@ python scripts/run_eval.py --mode fixture --input tests/fixtures/eval_run.json
 | 0 | — | NFR-004 | discovery 真实性、匿名化、go/no-go |
 | 1 | FR-002, FR-021 | NFR-001, NFR-013 | 范围确认 |
 | 2 | FR-003, FR-029, FR-030 | NFR-007, NFR-016 | 数据 contract review |
-| 3 | FR-001, FR-004–006 | NFR-012 | 补充材料安全边界 |
-| 4 | FR-032 的 client 基础 | NFR-002, NFR-009–010 | Dify 账户/key |
+| 3 | FR-001, FR-004–006 | NFR-012, NFR-020 | 补充材料安全边界、临时文件生命周期 |
+| 4 | 无直接 user-facing FR；支撑 Tasks 5/6/8 的 typed client 与 schema contracts | NFR-002, NFR-009–010 | Dify 账户/key |
 | 5 | FR-007–009, FR-030 | NFR-013, NFR-015–016 | Dify planning 测试/DSL |
 | 6 | FR-010–015, FR-030 | NFR-008, NFR-011, NFR-015–016 | Tavily 安装/key/费用 |
 | 7 | FR-016–022 | NFR-014, NFR-017 | 风险与审核交互复核 |
 | 8 | FR-023–028, FR-030 | NFR-014–016 | preview/formal 与导出确认 |
 | 9 | FR-031–033 | NFR-006, NFR-012, NFR-018 | gold 标注、live cost |
-| 10 | FR-022, FR-034–036 | NFR-004–006, NFR-017 | consent、招募、隐私 |
-| 11 | FR-037–039 | NFR-001–003, NFR-015–018 | private deploy、live cost、release |
-| 12 | FR-040 | NFR-004, NFR-006, NFR-018 | session、匿名检查、真实结论 |
+| 10 | FR-022, FR-034–036, FR-041 | NFR-004–006, NFR-017, NFR-019–021 | 定义/测试 protocol、consent、删除、隐私 |
+| 11 | FR-037–039, FR-042 | NFR-001–003, NFR-015–018, NFR-020, NFR-022–023 | private deploy、live cost、backup/restore、release |
+| 12 | FR-036, FR-040 | NFR-004, NFR-006, NFR-018–019, NFR-021, NFR-023 | 执行 3–5 sessions、匿名检查、retention、真实结论 |
 
 ### B. 术语表
 
@@ -666,8 +705,8 @@ python scripts/run_eval.py --mode fixture --input tests/fixtures/eval_run.json
 |---|---|
 | B-lite MVP | 以明确单一 persona、单领域、轻量工作台和人工兜底完成真实验证的首版 |
 | Evidence matrix | 以问题、claim、数值字段、口径、来源、直接引文、风险和审核状态组织的中间事实层 |
-| Candidate evidence | 尚未确认但可进入审核流程的证据；只有 accessible + direct quote + not discarded 子集可用于 preview |
-| Preview | `brief_mode=preview`；待审核、不可导出，每个事实句显示引用、风险和 pending/unconfirmed 状态 |
+| Candidate evidence | 可进入审核流程的证据；preview 允许状态恰为 `{pending, needs_edit, confirmed}`，并要求 accessible、non-empty direct quote、URL/local reference、not discarded |
+| Preview | `brief_mode=preview`；banner 明示可能包含未确认证据且不可导出，每个事实句显示引用、风险和所用记录的实际状态 |
 | Formal brief | `brief_mode=formal`；只用 `confirmed` 证据，经逐句映射验证后可导出 |
 | Direct quote | 逐字来自来源正文、保留最小充分上下文的 `evidence_quote` |
 | Definition scope | 来源采用的市场/概念边界；不同口径必须分开 |
@@ -675,6 +714,10 @@ python scripts/run_eval.py --mode fixture --input tests/fixtures/eval_run.json
 | Severe factual error | 可能误导行业判断的错误，包括简报引入证据记录外事实 |
 | Human checkpoint | 框架确认、证据审核、正式导出、供应商费用/密钥、发布和结果真实性等由人负责的门禁 |
 | Work-usable/reuse user | 完整测试后明确认为结果可用于工作且明确会再次使用的匿名目标用户 |
+| Ephemeral SQLite | Community Cloud runtime store，container/redeploy 后可能丢失，不是 durable system of record |
+| RPO | 恢复点目标；本 MVP 最多损失一个尚未完成/备份的进行中 session |
+| RTO | 恢复时间目标；本 MVP 为 30 分钟内 redeploy/reinitialize/restore 并核对数据 |
+| Abstention | 明确说明证据不足或不确定的句子；不进入 claim/numeric 分母，但单独报告数量 |
 
 ---
 
