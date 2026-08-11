@@ -15,7 +15,8 @@
 - Every project accepts at most 5 supplemental items; allowed files are PDF, TXT, and Markdown; each file is at most 20 MiB; URLs count toward the 5-item limit.
 - The app has five stages: research task, framework, sources, evidence matrix, and brief.
 - The app has no account system, payments, team permissions, sourcing, company recommendation, monitoring, PPT generation, or autonomous investment decisions.
-- A claim without a directly supporting quote or accessible source cannot be confirmed and cannot enter the brief.
+- A claim without a directly supporting quote or accessible source cannot be confirmed and cannot enter either a candidate preview or a formal/exportable brief.
+- A candidate preview is clearly labeled pending/unconfirmed and non-exportable; it may use only accessible, directly quoted candidate evidence and must show citations and risk labels. A formal/exportable brief may use only user-confirmed evidence.
 - Market figures require geography, period, unit, and definition scope; different definitions stay separate.
 - Company/commercialization/financing sources older than 12 months and market/supply-chain reports older than 24 months receive `possibly_stale`; history, standards, and technical-principle sources are exempt from automatic staleness.
 - Dify and provider keys stay in `.streamlit/secrets.toml` locally and Streamlit Community Cloud Secrets in deployment; never commit them.
@@ -49,7 +50,7 @@
 ├── prompts/
 │   ├── research_plan.md              # Question-tree prompt
 │   ├── evidence_extraction.md        # Evidence extraction prompt and schema rules
-│   └── brief_generation.md           # Confirmed-evidence-only brief prompt
+│   └── brief_generation.md           # Candidate-preview and confirmed-evidence formal brief prompt
 ├── schemas/
 │   ├── research_framework.schema.json
 │   ├── evidence_bundle.schema.json
@@ -104,7 +105,7 @@
 
 - [ ] **Step 1: Write the interview guide before recruiting**
 
-Use the same questions for every participant: recent research task and deadline; exact steps and tools; time by step; repeated or copied work; source/citation failure cases; review and correction process; confidentiality constraints; reaction to framework → evidence → brief; and the one condition that would stop them using it. Do not pitch features until the current workflow is reconstructed.
+Use the same questions for every participant: recent research task and deadline; exact steps and tools; time by step; repeated or copied work; source/citation failure cases; review and correction process; confidentiality constraints; reaction to framework → evidence → brief; and the one condition that would stop them using it. The checkpoint question must distinguish a clearly labeled non-exportable preview, built only from accessible directly quoted candidate evidence with visible citations/pending status, from a formal/exportable brief built only from user-confirmed evidence after high-risk/key-data review. Do not pitch features until the current workflow is reconstructed.
 
 - [ ] **Step 2: Conduct and anonymize 2–3 interviews**
 
@@ -115,7 +116,7 @@ Use session codes `DV-01` onward. Do not record names, employer names, client na
 `docs/discovery-interviews.md` must contain:
 
 1. Participant table with session code, role level, recency of research work, and no identifying details.
-2. Current-state workflow with median reported time range for scoping, search, extraction, reconciliation, citation cleanup, and writing.
+2. Current-state workflow with median reported time range for scoping, search, extraction, reconciliation, citation cleanup, and writing. If eligible participants provide only total task duration, record that participant-reported limitation explicitly; do not invent a step allocation or median, and measure step durations in Task 10.
 3. Pain-point ranking using frequency × severity, with raw participant count beside each item.
 4. Evidence supporting or contradicting the selected user, embodied-intelligence pilot, and evidence-first workflow.
 5. Product changes made from interviews; if none, state why the confirmed scope remains appropriate.
@@ -123,7 +124,7 @@ Use session codes `DV-01` onward. Do not record names, employer names, client na
 
 - [ ] **Step 4: Apply the go/no-go gate**
 
-Proceed unchanged only if at least 2 participants report material repetitive search/extraction/citation work and accept an evidence-review checkpoint. Otherwise revise the target workflow in both the design spec and this plan before writing product code.
+Proceed unchanged only if at least 2 participants report material repetitive search/extraction/citation work and accept the standardized checkpoint: a clearly labeled non-exportable preview using only accessible directly quoted candidate evidence, followed by high-risk/key-data review before a formal/exportable brief using only user-confirmed evidence. Otherwise revise the target workflow in both the design spec and this plan before writing product code.
 
 - [ ] **Step 5: Review and commit**
 
@@ -159,7 +160,7 @@ git commit -m "docs: validate FA research workflow"
 
 **Interfaces:**
 - Consumes: None.
-- Produces: `ProjectStage`, `ReviewStatus`, `SourceType`, `RiskFlag`, `AccessStatus`, `ExtractionStatus`, `EvidenceCategory`, `WorkflowStatus`, `SupplementalItem`, `ResearchProject`, `ResearchQuestion`, `SourceRecord`, `EvidenceRecord`, `WorkflowCheckpoint`, `ClaimEvidenceMap`, and `BriefBundle`; `get_project_id()` / `set_project_id()` session helpers; a runnable five-page Streamlit shell.
+- Produces: `ProjectStage`, `ReviewStatus`, `SourceType`, `RiskFlag`, `AccessStatus`, `ExtractionStatus`, `EvidenceCategory`, `WorkflowStatus`, `BriefMode`, `SupplementalItem`, `ResearchProject`, `ResearchQuestion`, `SourceRecord`, `EvidenceRecord`, `WorkflowCheckpoint`, `ClaimEvidenceMap`, and `BriefBundle`; `BriefBundle.mode` is `preview` or `formal`; `get_project_id()` / `set_project_id()` session helpers; a runnable five-page Streamlit shell.
 
 - [ ] **Step 1: Add dependency and secret templates**
 
@@ -431,9 +432,15 @@ class ClaimEvidenceMap(BaseModel):
     evidence_ids: tuple[str, ...]
 
 
+class BriefMode(StrEnum):
+    PREVIEW = "preview"
+    FORMAL = "formal"
+
+
 class BriefBundle(BaseModel):
     model_config = ConfigDict(frozen=True)
     project_id: str
+    mode: BriefMode
     markdown: str
     claim_evidence_map: tuple[ClaimEvidenceMap, ...]
     created_at: datetime = Field(default_factory=utc_now)
@@ -656,7 +663,7 @@ Set `additionalProperties: false` at every object level and define these exact r
 
 - `research_framework.schema.json`: root `questions`; every item requires `id`, `dimension`, `question`, `priority`, and `approved`; `dimension` is one of the seven fixed research dimensions, `priority` is integer 1–3, and the array contains 21–42 unique IDs.
 - `evidence_bundle.schema.json`: root `sources` and `evidence`. Every source requires `id`, `project_id`, `title`, `organization`, `source_type`, `publication_date`, `access_status`, `extraction_status`, `risk_flags`, and `workflow_run_id`; `url` and `local_reference` are nullable but at least one must be present. Every evidence item requires `id`, `project_id`, `research_question_id`, `research_question`, `source_id`, `category`, `claim`, `numeric_value`, `unit`, `geography`, `period`, `definition_scope`, `source_title`, `source_organization`, `source_type`, `source_url`, `source_reference`, `source_accessible`, `publication_date`, `evidence_quote`, `risk_flags`, and `review_status`; nullable fields remain present with JSON `null`.
-- `brief_bundle.schema.json`: root `project_id`, `markdown`, and `claim_evidence_map`; every mapping requires `sentence` and a unique `evidence_ids` array. `markdown` has `minLength: 1`; evidence IDs have `minLength: 1`; empty evidence arrays are permitted only for headings and explicit uncertainty statements and are checked locally in Task 8.
+- `brief_bundle.schema.json`: root `project_id`, `mode`, `markdown`, and `claim_evidence_map`; `mode` is exactly `preview` or `formal`. Every mapping requires `sentence` and a unique `evidence_ids` array. `markdown` has `minLength: 1`; evidence IDs have `minLength: 1`; empty evidence arrays are permitted only for headings and explicit uncertainty statements and are checked locally in Task 8.
 
 Use the same enum literals as `src/domain.py`. Add parametrized `Draft202012Validator` tests that validate one known-good fixture and reject an extra property, a missing required field, an invalid enum, and a source with neither URL nor local reference. Add a separate local contract test for duplicate IDs because JSON Schema `uniqueItems` does not detect two objects that differ outside the ID field.
 
@@ -668,7 +675,7 @@ Use the same enum literals as `src/domain.py`. Add parametrized `Draft202012Vali
 EXPECTED = {
     "research_plan.yml": ({"topic", "geography", "time_range", "purpose", "focus_questions"}, {"framework_json"}),
     "evidence_collection.yml": ({"project_id", "framework_json", "supplemental_context"}, {"sources_json", "evidence_json"}),
-    "brief_generation.yml": ({"project_id", "confirmed_evidence_json"}, {"brief_json"}),
+    "brief_generation.yml": ({"project_id", "brief_mode", "evidence_json"}, {"brief_json"}),
 }
 ```
 
@@ -925,7 +932,7 @@ git commit -m "feat: review evidence quality risks"
 
 ---
 
-### Task 8: Confirmed-Evidence Brief, Citation Guardrail, and Exports
+### Task 8: Candidate Preview, Confirmed-Evidence Formal Brief, Citation Guardrail, and Exports
 
 **Files:**
 - Create: `prompts/brief_generation.md`
@@ -937,12 +944,12 @@ git commit -m "feat: review evidence quality risks"
 - Modify: `app/pages/brief.py`
 
 **Interfaces:**
-- Consumes: Only `EvidenceRecord` objects with `review_status="confirmed"`.
-- Produces: `BriefBundle`; `validate_brief(bundle, evidence_by_id) -> BriefValidationResult`; `evidence_to_csv(records) -> bytes`; `brief_to_markdown(bundle) -> str`.
+- Consumes: For `BriefMode.PREVIEW`, only accessible, directly quoted, non-discarded candidate `EvidenceRecord` objects; for `BriefMode.FORMAL`, only `EvidenceRecord` objects with `review_status="confirmed"`.
+- Produces: mode-tagged `BriefBundle`; `validate_brief(bundle, evidence_by_id) -> BriefValidationResult`; `evidence_to_csv(records) -> bytes`; `brief_to_markdown(bundle) -> str`. Preview bundles are non-exportable; formal bundles alone are exportable.
 
 - [ ] **Step 1: Write failing guardrail tests**
 
-Test that every factual sentence maps to at least one confirmed evidence ID; discarded/pending IDs fail; unknown IDs fail; headings and explicit uncertainty statements may have zero evidence IDs; a blocked sentence prevents export.
+Test that every factual sentence maps to at least one allowed evidence ID; unknown IDs fail; headings and explicit uncertainty statements may have zero evidence IDs. For `formal`, pending/discarded IDs fail and a blocked sentence prevents export. For `preview`, any inaccessible, missing-quote, or discarded ID fails; pending IDs are permitted only when the rendered preview shows citations, risk labels, and pending/unconfirmed status. Assert previews have no download/export control and cannot be presented as final.
 
 - [ ] **Step 2: Verify RED**
 
@@ -952,14 +959,14 @@ Expected: FAIL because validators/serializers do not exist.
 
 - [ ] **Step 3: Implement brief validator and exports**
 
-Use the Dify-provided `claim_evidence_map`; do not try to infer mappings from prose. Reject any mapped ID absent from the confirmed evidence dictionary. CSV columns follow the spec data-model order and use UTF-8 with BOM for Chinese spreadsheet compatibility. Markdown adds a numbered source appendix with stable evidence IDs.
+Use the Dify-provided `claim_evidence_map`; do not try to infer mappings from prose. Reject any mapped ID absent from the allowed evidence dictionary for the bundle mode. `formal` rejects all non-confirmed evidence; `preview` rejects inaccessible, missing-quote, and discarded evidence. CSV columns follow the spec data-model order and use UTF-8 with BOM for Chinese spreadsheet compatibility. Markdown adds a numbered source appendix with stable evidence IDs. Only a validated `formal` bundle is passed to an export serializer or download control.
 
 - [ ] **Step 4: Save brief prompt and configure workflow**
 
 Save this core prompt in `prompts/brief_generation.md` and validate against `brief_bundle.schema.json`:
 
 ```text
-你是行业研究简报编辑器。唯一可用事实库是 {{confirmed_evidence_json}}，其中每条记录均已由用户确认。
+你是行业研究简报编辑器。唯一可用事实库是 {{evidence_json}}。输出模式是 {{brief_mode}}，其值只能是 `preview` 或 `formal`。
 
 输出结构：
 1. 研究范围与口径
@@ -973,18 +980,20 @@ Save this core prompt in `prompts/brief_generation.md` and validate against `bri
 规则：
 - 不得引入证据记录中没有的事实、数字、公司、因果关系或投资建议。
 - 每个事实性句子末尾添加一个或多个稳定证据 ID，格式为 [EV:ev-1]；并在 claim_evidence_map 中逐句重复完全相同的句子与 ID。
-- 标题可以没有证据 ID。明确写成“现有已确认证据不足以判断……”的不确定性句子可以映射为空数组。
+- 标题可以没有证据 ID。明确写成“现有可用证据不足以判断……”的不确定性句子可以映射为空数组。
 - 对同题冲突值分别陈述来源、地域、时期和 definition_scope，不选边、不求平均；在正文中明确写“口径不可直接比较”或“证据存在冲突”。
-- 没有已确认证据的章节保留标题并写明证据缺口，不补全内容。
+- 在所选模式没有可用证据的章节保留标题并写明证据缺口，不补全内容。
+- 当 `brief_mode` 为 `preview`：只能使用来源可访问、具有直接 evidence_quote、且未被剔除的候选记录；首行必须标注“待审核、不可导出预览”；每条事实性句子除证据 ID 外还必须展示 pending/unconfirmed 状态和 risk_flags；不得使用“最终”“正式”或任何可交付表述。
+- 当 `brief_mode` 为 `formal`：唯一可用记录的 review_status 必须为 `confirmed`；不得显示待审核状态；正式结果可用于导出。
 - 只输出符合 brief_bundle.schema.json 的 JSON，不输出 JSON 之外的文字。
 ```
 
 Configure:
 
 ```text
-User Input(confirmed_evidence_json)
+User Input(project_id, brief_mode, evidence_json)
   → GPT-5.4 mini structured brief generation
-  → Code node: reject unknown evidence IDs
+  → Code node: reject unknown or mode-ineligible evidence IDs
   → Output(brief_json)
 ```
 
@@ -992,7 +1001,7 @@ Export to `workflows/brief_generation.yml` and store its key as `DIFY_BRIEF_API_
 
 - [ ] **Step 5: Implement brief page**
 
-Disable generation when no evidence is confirmed. Write workflow checkpoints around the Dify call; a failure retains the previous validated brief and confirmed evidence and exposes `Retry brief generation`. On generation, run local validation before display. If validation fails, show blocked sentences and a “Return to evidence review” action; do not render download buttons. If it passes, offer `研究简报.md` and `证据矩阵.csv` through `st.download_button(on_click="ignore")`.
+Offer a clearly labeled `待审核、不可导出预览` only when at least one candidate record is accessible, has a direct quote, and is not discarded. Its mode is `preview`; it must display the citation, risk labels, and pending/unconfirmed state for every factual sentence, and it has no copy-as-final, download, or export control. Offer `正式简报` generation only when evidence is confirmed. Its mode is `formal`; write workflow checkpoints around either Dify call, and a failure retains the previous validated result and exposes `Retry brief generation`. Run local mode-aware validation before display. If validation fails, show blocked sentences and a “Return to evidence review” action; do not render download buttons. Only if a `formal` result passes may the page offer `研究简报.md` and `证据矩阵.csv` through `st.download_button(on_click="ignore")`.
 
 - [ ] **Step 6: Run tests and workflow validation**
 
