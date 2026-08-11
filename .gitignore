@@ -6,3 +6,4 @@
 # Local brainstorming session and temporary tooling
 .superpowers/
 work/
+.worktrees/
