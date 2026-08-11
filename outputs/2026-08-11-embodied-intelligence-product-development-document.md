@@ -7,7 +7,7 @@
 | 项目 | 内容 |
 |---|---|
 | 文档日期 | 2026-08-11 |
-| 版本 | v1.0 |
+| 版本 | v1.1 |
 | 状态 | 已批准进入实施；Task 0 已完成，Task 1–12 尚待执行 |
 | 产品负责人 | 人类产品 owner：范围、口径、供应商账户/密钥、实时费用与发布批准 |
 | 实施负责人 | 后续 implementers：按本文和实施计划交付、测试并留存证据 |
@@ -29,6 +29,7 @@
 
 | 版本 | 日期 | 变更 |
 |---|---|---|
+| v1.1 | 2026-08-11 | 根据独立审阅澄清 preview/retry/evaluation/privacy/recovery 合同，并修正 Task 依赖 DAG 与 evidence sort precedence |
 | v1.0 | 2026-08-11 | 在 Task 0 go 决策后，综合四份权威来源形成完整产品开发基线 |
 
 ### 证据类型标记
@@ -211,7 +212,7 @@ flowchart TD
 | 01 研究需求 | `topic`、`geography`、`time_range`、`purpose`、`focus_questions`、文件/URL | 补充项验证通过后创建项目 | 未创建、有效、验证失败 |
 | 02 研究框架 | 七维问题树、优先级、保留/删除、批准状态 | 每个维度至少一题且所有保留题 `approved=true` 才可启动采集 | 生成中、失败可重试、待确认、已确认 |
 | 03 资料来源 | 标题、机构、角色、日期、URL、访问/提取状态 | 仅已确认框架可采集；可剔除来源 | 可访问、不可访问、解析失败、成功/中断 |
-| 04 证据矩阵 | claim、数值、时期、来源、引文、口径、风险、审核状态 | 缺引文或来源不可访问不得确认 | blocked、conflict、stale、incomplete、pending、confirmed、discarded |
+| 04 证据矩阵 | claim、数值、时期、来源、引文、口径、风险、审核状态 | 缺引文或来源不可访问不得确认 | blocked、conflict、stale、incomplete、clean needs_edit、clean pending、confirmed、discarded |
 | 05 研究简报 | 候选预览或正式简报、逐句映射、导出 | 预览无导出；正式结果必须模式合规且验证通过 | preview、formal、validation blocked、retryable failure |
 
 ## 10. 功能需求
@@ -238,7 +239,7 @@ flowchart TD
 | FR-016 | P0 | 自动质量评估 | 对缺引文、不可访问、关键字段缺失、lead-only、来源偏差、标题正文不符和解析失败应用确定性标签 | Task 7 |
 | FR-017 | P0 | 数值/定义冲突检测 | 同问题+地域+时期+单位+口径的不同数值标 `value_conflict`；去掉口径后的组含多个非空口径标 `definition_conflict`，记录保持分离 | Task 7 |
 | FR-018 | P0 | 时效规则 | company/commercialization/financing/competition 超过 12 个月、market/supply_chain 超过 24 个月标 `possibly_stale`；technical_principle/history/standard 自动豁免 | Task 7 |
-| FR-019 | P0 | 风险优先证据矩阵 | 确定性排序为：`discarded` 最后、`confirmed` 位于全部非最终记录之后；其余依次 `blocked > conflict > stale > incomplete > clean pending`。`blocked`=因 missing/inaccessible/no quote/no reference 不能确认；`conflict`=definition/value conflict；`stale`=`possibly_stale` 且无更高类；`incomplete`=`missing_key_field` 或其他非阻断风险；`clean pending`=`can_confirm=true` 且 `risk_flags` 为空。固定 fixture 的排序断言通过 | Task 7 |
+| FR-019 | P0 | 风险优先证据矩阵 | 全序为：所有 non-final records 按 `blocked > conflict > stale > incomplete > clean needs_edit > clean pending`，随后 `confirmed`，最后 `discarded`。risk bucket 优先于 status bucket。`blocked`=因 missing/inaccessible/no quote/no reference 不能确认；`conflict`=definition/value conflict；`stale`=`possibly_stale` 且无更高 bucket；`incomplete`=`missing_key_field` 或其他非阻断风险；`clean needs_edit`=`review_status=needs_edit`、`can_confirm=true`、`risk_flags` 为空；`clean pending`=`review_status=pending`、`can_confirm=true`、`risk_flags` 为空。固定 fixture 同时包含两种 clean status，并包含一个带风险的 `needs_edit`，断言后者按其更高 risk bucket 排序 | Task 7 |
 | FR-020 | P0 | 证据审核动作 | 用户可设为 `confirmed`、`needs_edit` 或 `discarded`；批量确认只接受 `review_status=pending`、`can_confirm=true`、`risk_flags` 为空的 clean pending 记录，并为每个 evidence ID 分别写一条审核 event；混入不合格记录的测试不得确认该记录 | Task 7 |
 | FR-021 | P0 | 确认阻断 | 缺直接引文、来源不可访问或无 URL/local reference 的记录尝试确认后仍为 `pending` 并显示原因 | Task 1 / Task 7 |
 | FR-022 | P1 | 人工变更留痕 | 每次 edit/confirm/needs-edit/discard 记录 evidence ID、前后状态、变更字段和 UTC 时间 | Task 7 / Task 10 |
@@ -556,24 +557,45 @@ Streamlit 是 server layer；Dify key 不暴露给客户端。所有自动测试
 
 ## 22. 15 天路线图、依赖与人类检查点
 
-**决策：Tasks 0–12 顺序建立证据合同、工作流、门禁、评测、运营和作品集；Task 0 已完成。**
+**决策：Tasks 0–12 按下述依赖 DAG 建立证据合同、工作流、门禁、评测、运营和作品集；Task 3 与 Task 4 可并行，Task 0 已完成。**
 
 | 日 | Task | 结果 | 关键依赖 | 人类检查点 |
 |---:|---|---|---|---|
 | 1 | Task 0 | `n=2` discovery、baseline、go 决策 | 近期完成行业研究的目标用户 | 访谈真实性、匿名化、go/no-go；已完成 |
-| 2 | Task 1–2 | foundation、domain contracts、SQLite | Task 0 go | 范围无新增 persona/功能 |
-| 3 | Task 3 | 补充材料验证/解析 | domain/storage | 上传资料不含机密测试数据 |
-| 4 | Task 4 | Dify client、JSON schema、contract validator | provider contract | Dify 账户与三个 key 由人创建 |
+| 2 | Task 1 | foundation、domain contracts | Task 0 | 范围无新增 persona/功能 |
+| 2 | Task 2 | SQLite repository | Task 1 | 数据 contract review |
+| 3 | Task 3 | 补充材料验证/解析 | Task 2 | 上传资料不含机密测试数据 |
+| 4 | Task 4 | Dify client、JSON schema、contract validator | Task 2 | Dify 账户与三个 key 由人创建 |
 | 5–6 | Task 5 | planning workflow 与 framework gate | Tasks 1, 2, 4 | 在 Dify 测试并导出 DSL |
 | 7–8 | Task 6 | Tavily evidence workflow 与 source page | Tasks 3, 4, 5 | 安装 Tavily 0.1.11、批准使用 key/费用 |
 | 9 | Task 7 | deterministic quality、review queue | Task 6 | 复核风险文案和人工修改语义 |
 | 10 | Task 8 | preview/formal、citation guardrail、exports | Task 7 | 确认预览不可导出、formal 硬门禁 |
-| 11 | Task 9 | 30 题 benchmark 与 eval runner | Tasks 4–8 | 人工 gold 与 severe-error rules |
-| 12 | Task 10 | telemetry、删除能力、user-test protocol 定义/测试 | 可运行 MVP | consent、匿名字段、retention 与测试招募 |
-| 13 | Task 11 | CI、runbook、三 E2E、live smoke、backup/restore drill、部署 | Tasks 1–10 | 账户/密钥/费用、private deploy、ephemeral SQLite recovery、release approval |
-| 14–15 | Task 12 | 执行 3–5 sessions、live eval、案例 | release gate | 至少 3 完整 session、人工检查匿名结果与结论真实性 |
+| 11 | Task 9 | 30 题 benchmark 与 eval runner | Task 8 | 人工 gold 与 severe-error rules |
+| 12 | Task 10 | telemetry、删除能力、user-test protocol 定义/测试 | Task 9 | consent、匿名字段、retention 与测试招募 |
+| 13 | Task 11 | CI、runbook、三 E2E、live smoke、backup/restore drill、部署 | Task 10 | 账户/密钥/费用、private deploy、ephemeral SQLite recovery、release approval |
+| 14–15 | Task 12 | 执行 3–5 sessions、live eval、案例 | Task 11 | 至少 3 完整 session、人工检查匿名结果与结论真实性 |
 
-Task 依赖图：`0 → 1 → 2 → (3 and 4 in parallel) → 5 → 6 → 7 → 8 → 9 → 10 → 11 → 12`。其中 Task 5 明确依赖 Tasks 1、2、4；Task 6 明确依赖 Tasks 3、4、5。若 Day 15 未完成用户测试，可延后 Task 12，但不得提前宣称 validated user value。
+```mermaid
+flowchart LR
+    T0["Task 0"] --> T1["Task 1"]
+    T1 --> T2["Task 2"]
+    T2 --> T3["Task 3"]
+    T2 --> T4["Task 4"]
+    T1 --> T5["Task 5"]
+    T2 --> T5
+    T4 --> T5
+    T3 --> T6["Task 6"]
+    T4 --> T6
+    T5 --> T6
+    T6 --> T7["Task 7"]
+    T7 --> T8["Task 8"]
+    T8 --> T9["Task 9"]
+    T9 --> T10["Task 10"]
+    T10 --> T11["Task 11"]
+    T11 --> T12["Task 12"]
+```
+
+Edge list 恰为：`0→1`；`1→2`；`2→3`；`2→4`；`1→5`；`2→5`；`4→5`；`3→6`；`4→6`；`5→6`；`6→7`；`7→8`；`8→9`；`9→10`；`10→11`；`11→12`。Tasks 3 和 4 可在 Task 2 后并行；Task 5 不依赖 Task 3；Task 6 是等待 Tasks 3、4、5 的 join。若 Day 15 未完成用户测试，可延后 Task 12，但不得提前宣称 validated user value。
 
 ## 23. 部署、密钥、CI、发布门禁与回滚/恢复
 
