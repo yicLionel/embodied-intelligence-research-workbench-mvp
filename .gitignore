@@ -7,3 +7,7 @@
 .superpowers/
 work/
 .worktrees/
+.venv/
+data/
+__pycache__/
+*.py[cod]

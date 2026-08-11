@@ -6,7 +6,7 @@
 
 ## 当前状态
 
-- 阶段：MVP 产品设计已确认，实施计划待编写
+- 阶段：离线可演示 MVP 已实现；真实 Dify/Tavily/OpenAI 接入待后续配置
 - 目标周期：2–3 周
 - 实现方式：低代码 AI 工作流，人工质检兜底
 - 验证方式：30 题离线评测集、3 个端到端场景、3–5 名目标用户测试
@@ -22,6 +22,18 @@
 ## 文档
 
 - [MVP 产品设计规格](outputs/2026-08-10-embodied-intelligence-research-workbench-design.md)
+- [离线实现规格](docs/superpowers/specs/2026-08-12-offline-workbench-design.md)
+- [实施计划](docs/superpowers/plans/2026-08-12-offline-workbench.md)
+
+## 本地运行
+
+```bash
+python3 -m venv .venv
+.venv/bin/python -m pip install -r requirements-dev.txt
+.venv/bin/streamlit run streamlit_app.py
+```
+
+在侧栏选择“装载演示研究”即可浏览完整的离线演示流程。演示资料是合成数据，不是实时研究结果。
 
 ## 首版非目标
 
