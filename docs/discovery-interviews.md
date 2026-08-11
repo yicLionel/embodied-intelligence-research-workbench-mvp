@@ -2,9 +2,9 @@
 
 ## Status and evidence boundary
 
-**Status: awaiting interviews.** This document contains the approved, privacy-preserving interview protocol and a synthesis structure; it does not contain participant findings. No participant sessions have been supplied or conducted in the project record. Consequently, no time ranges, pain-point rankings, product changes, or go/no-go result are claimed below.
+**Status: one provisional interview recorded; synthesis incomplete.** This document contains the approved, privacy-preserving interview protocol, one anonymized session, and a synthesis structure. One session cannot establish a validated baseline, time median, pain-point ranking, product change, or go/no-go result.
 
-This is deliberately a pre-build evidence record. It must be completed from 2–3 real conversations with boutique-FA interns or junior analysts whose industry-research task was completed within the previous 90 days. Do not begin product-code work on the basis of this template alone.
+This is deliberately a pre-build evidence record. It must be completed from 2–3 real conversations with boutique-FA interns or junior analysts whose industry-research task was completed within the previous 90 days. Do not begin product-code work on the basis of the single session or this template alone.
 
 ### Privacy rules
 
@@ -49,28 +49,46 @@ Use one instance of this template per completed session. Paraphrase answers; do 
 | Evidence-review checkpoint acceptance | Yes / no / conditional, with paraphrased reason |
 | Stop-use condition | Paraphrase |
 
-## Participant register
+### Completed session: `DV-01`
 
-No eligible sessions have been recorded.
+| Field | Record |
+|---|---|
+| Session code | `DV-01` |
+| Role level | FA intern |
+| Research-work recency | Completed last week (within 90 days) |
+| Task type and deadline context | Simple embodied-intelligence company research. Non-confidential purpose and deadline details were not supplied. |
+| Workflow steps and tools | Used AI to assist industry search and information organization. The participant did not reliably reconstruct the individual steps or tools beyond this. |
+| Participant-reported time range by step | Total task duration: about one week. No reliable allocation across scoping, search, extraction, reconciliation, citation cleanup, or writing was supplied. |
+| Repeated or copied work | Market-size collection, data organization, and CAGR calculations were described as repetitive or high-friction. |
+| Source or citation failure and correction | Frequent data-definition conflicts and inaccessible sources required repeated verification. |
+| Review and correction process | Human review, usually to align data definitions. |
+| Confidentiality constraints | Not supplied; no identifying or confidential details were recorded. |
+| Biggest risk | Data distortion. |
+| Evidence-review checkpoint acceptance | Conditional / not accepted as proposed. The participant preferred generating a brief first, marking sources, then independently verifying them; this is not acceptance of a pre-brief per-record checkpoint. |
+| Stop-use condition | A cumbersome interface, longer completion time than the original workflow, or implausible data. |
+
+## Participant register
 
 | Session code | Role level | Recency of research work | Non-identifying note |
 |---|---|---|---|
-| — | — | — | Awaiting an eligible interview |
+| `DV-01` | FA intern | Completed last week | Simple embodied-intelligence company research; no identifying or confidential details recorded |
 
 ## Synthesis baseline
 
-The following fields must be filled only after at least two eligible sessions are captured. Values must retain the `participant-reported` label and show the raw contributing session count.
+The following values are provisional evidence from `n=1`, not a synthesis. A baseline synthesis, median time range, and stable ranking require at least two eligible sessions. Values must retain the `participant-reported` label and show the raw contributing session count.
 
 ### Current-state workflow and time ranges
 
 | Workflow step | Median participant-reported time range | Contributing sessions | Evidence status |
 |---|---|---:|---|
-| Scoping | Not yet available | 0 | Awaiting interviews |
-| Search | Not yet available | 0 | Awaiting interviews |
-| Extraction | Not yet available | 0 | Awaiting interviews |
-| Reconciliation | Not yet available | 0 | Awaiting interviews |
-| Citation cleanup | Not yet available | 0 | Awaiting interviews |
-| Writing | Not yet available | 0 | Awaiting interviews |
+| Scoping | Not reported by `DV-01` | 0 | No step-level estimate; not a median |
+| Search | Not reported by `DV-01` | 0 | No step-level estimate; not a median |
+| Extraction | Not reported by `DV-01` | 0 | No step-level estimate; not a median |
+| Reconciliation | Not reported by `DV-01` | 0 | No step-level estimate; not a median |
+| Citation cleanup | Not reported by `DV-01` | 0 | No step-level estimate; not a median |
+| Writing | Not reported by `DV-01` | 0 | No step-level estimate; not a median |
+
+`DV-01` reported a total task duration of about one week. This total is participant-reported and cannot be allocated to the six workflow steps or used as a step-level median.
 
 For each step, preserve each participant’s reported range in the session record. Report a median range only when the range calculation and the contributing codes are documented without revealing identity.
 
@@ -78,21 +96,24 @@ For each step, preserve each participant’s reported range in the session recor
 
 Rank only pain points stated in participant sessions. For each item, calculate `frequency × severity`, where frequency is the number of participants reporting the issue and severity uses a documented 1–5 participant-reported impact rating. Report the raw count as `n/N`; do not infer a ranking from the product design.
 
-| Rank | Pain point | Frequency | Severity basis | Frequency × severity | Evidence status |
+| Provisional rank | Pain point | Frequency | Severity basis | Frequency × severity | Evidence status |
 |---:|---|---:|---|---:|---|
-| — | Not yet available | 0 | No participant evidence | — | Awaiting interviews |
+| 1 (tie) | Repeated search / market-size collection | 1/1 | Participant-reported 5/5 | 5 | Provisional; `n=1` |
+| 1 (tie) | Data organization | 1/1 | Participant-reported 5/5 | 5 | Provisional; `n=1` |
+| 1 (tie) | Data-definition conflicts | 1/1 | Participant-reported 5/5 | 5 | Provisional; `n=1` |
+| 1 (tie) | Inaccessible sources | 1/1 | Participant-reported 5/5 | 5 | Provisional; `n=1` |
 
 ### Scope hypotheses to test
 
 | Hypothesis | Evidence supporting | Evidence contradicting | Status |
 |---|---|---|---|
-| Boutique-FA interns and junior analysts are the appropriate first user | Not yet available | Not yet available | Untested |
-| An embodied-intelligence pilot is an appropriate first research domain | Not yet available | Not yet available | Untested |
-| An evidence-first workflow with an explicit review checkpoint fits current practice | Not yet available | Not yet available | Untested |
+| Boutique-FA interns and junior analysts are the appropriate first user | `DV-01` is an FA intern who recently completed the relevant research task. | No contradicting evidence recorded. | Provisional; `n=1` |
+| An embodied-intelligence pilot is an appropriate first research domain | `DV-01` recently completed simple embodied-intelligence company research. | No contradicting evidence recorded. | Provisional; `n=1` |
+| An evidence-first workflow with an explicit review checkpoint fits current practice | `DV-01` described repeated verification and human definition-alignment review. | `DV-01` preferred brief generation and source marking before independent verification, rather than accepting the proposed pre-brief per-record checkpoint. | Provisional; checkpoint sequence contradicted by `n=1` |
 
 ### Design implications and product changes
 
-No interview-derived product changes have been made. The signed-off scope remains a design hypothesis, not validated evidence, until the completed interview synthesis supports or changes it.
+No interview-derived product changes have been made. `DV-01` raises a sequence question—whether review should begin before brief generation or after an initial source-marked draft—but one conditional/non-accepting response is insufficient to change the signed-off scope. The scope remains a design hypothesis until the completed interview synthesis supports or changes it.
 
 ## Comparable baseline task for Task 10
 
@@ -106,7 +127,7 @@ For the current-state baseline, ask participants to reconstruct how they would c
 
 **Decision: not assessed; no-go for proceeding unchanged under the validation gate.**
 
-The required evidence does not yet exist. The gate permits proceeding unchanged only when at least two participants both:
+Only one eligible session is available, and `DV-01` did not accept the proposed pre-brief per-record evidence checkpoint. The gate permits proceeding unchanged only when at least two participants both:
 
 1. report material repetitive search, extraction, or citation work; and
 2. accept an evidence-review checkpoint.
