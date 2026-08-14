@@ -68,13 +68,58 @@ def test_online_config_uses_safe_timeout_when_environment_value_is_invalid(monke
 
 def test_create_online_project_persists_user_scope_and_fixed_framework(tmp_path):
     repo = WorkbenchRepository(tmp_path / "online.sqlite3")
-    project_id = create_online_project(repo, "物流机器人", "中国", "2025–2026", "内部讨论", "关注订单")
+    project_id = create_online_project(repo, "物流机器人", "中国", "2025–2026", "内部讨论")
     project = repo.get_project(project_id)
     questions = repo.list_questions(project_id)
     assert project.topic == "物流机器人"
-    assert project.focus_questions == "关注订单"
     assert [question.dimension for question in questions] == DIMENSIONS
     assert not any(question.approved for question in questions)
+
+
+def test_parse_custom_questions_supports_dimension_prefix():
+    from src.online_research import _parse_custom_questions
+    pairs = _parse_custom_questions("代表性团队：具身智能领域有哪些代表性创业团队？\n重点关注商业化订单\n\n")
+    assert pairs == [
+        ("代表性团队", "具身智能领域有哪些代表性创业团队？"),
+        ("自定义问题", "重点关注商业化订单"),
+    ]
+
+
+def test_create_online_project_appends_custom_questions_after_framework(tmp_path):
+    repo = WorkbenchRepository(tmp_path / "online.sqlite3")
+    focus = "代表性团队：具身智能领域有哪些代表性创业团队？\n重点关注商业化订单"
+    project_id = create_online_project(repo, "具身智能", "中国", "2024–2026", "内部讨论", focus)
+    questions = repo.list_questions(project_id)
+    assert len(questions) == len(DIMENSIONS) + 2
+    assert [q.dimension for q in questions[: len(DIMENSIONS)]] == DIMENSIONS
+    assert questions[len(DIMENSIONS)].dimension == "代表性团队"
+    assert "代表性创业团队" in questions[len(DIMENSIONS)].text
+    assert questions[len(DIMENSIONS) + 1].dimension == "自定义问题"
+    assert "商业化订单" in questions[len(DIMENSIONS) + 1].text
+    assert not any(question.approved for question in questions)
+
+
+def test_run_online_research_generates_evidence_for_custom_questions(tmp_path, monkeypatch):
+    repo = WorkbenchRepository(tmp_path / "online.sqlite3")
+    project_id = create_online_project(repo, "具身智能", "中国", "2024–2026", "内部讨论", "代表性团队：有哪些代表团队？")
+    questions = [question.model_copy(update={"approved": True}) for question in repo.list_questions(project_id)]
+    repo.save_questions(questions)
+
+    class FakeTavilyClient:
+        def __init__(self, api_key, timeout):
+            assert api_key == "tv-test"
+
+        def search(self, query):
+            return [SearchHit("团队盘点", "https://example.com/team", "代表团队原文摘录。", date(2026, 1, 1))]
+
+    monkeypatch.setattr(online_research, "TavilyClient", FakeTavilyClient)
+    result = run_online_research(repo, project_id, OnlineResearchConfig(tavily_api_key="tv-test"))
+
+    assert result.status == "succeeded"
+    assert result.evidence_count == len(DIMENSIONS) + 1
+    evidence = repo.list_evidence(project_id)
+    assert any(item.dimension == "代表性团队" for item in evidence)
+    assert all(item.review_status.value == "pending" for item in evidence)
 
 
 def test_run_online_research_persists_deduped_sources_and_each_dimension_evidence(tmp_path, monkeypatch):

@@ -197,10 +197,35 @@ def _stable_id(prefix: str, value: str) -> str:
     return f"{prefix}-{hashlib.sha1(value.encode('utf-8')).hexdigest()[:12]}"
 
 
+CUSTOM_DIMENSION = "自定义问题"
+
+
+def _parse_custom_questions(focus_questions: str) -> list[tuple[str, str]]:
+    """把补充重点问题按行解析为 (dimension, text) 列表。
+
+    每行支持两种格式：
+    - 「维度名: 问题」——维度名会成为独立维度（如「代表性团队: 具身智能领域有哪些代表团队？」）。
+    - 纯问题文本——归入「自定义问题」维度。
+    """
+    pairs: list[tuple[str, str]] = []
+    for line in (focus_questions or "").splitlines():
+        line = line.strip()
+        if not line:
+            continue
+        match = re.match(r"^(.+?)\s*[:：]\s*(.+)$", line)
+        if match and match.group(2).strip():
+            pairs.append((match.group(1).strip(), match.group(2).strip()))
+        else:
+            pairs.append((CUSTOM_DIMENSION, line))
+    return pairs
+
+
 def create_online_project(repo: Any, topic: str, geography: str, time_range: str, purpose: str, focus_questions: str = "") -> str:
     project_id = _stable_id("online", f"{topic}|{geography}|{time_range}|{purpose}")
     repo.save_project(Project(id=project_id, topic=topic, geography=geography, time_range=time_range, purpose=purpose, focus_questions=focus_questions))
     questions = [ResearchQuestion(id=f"{project_id}-q-{index + 1}", project_id=project_id, dimension=dimension, text=QUESTION_TEMPLATES[dimension].format(topic=topic), priority=2) for index, dimension in enumerate(DIMENSIONS)]
+    for offset, (dimension, text) in enumerate(_parse_custom_questions(focus_questions), start=len(DIMENSIONS)):
+        questions.append(ResearchQuestion(id=f"{project_id}-q-{offset + 1}", project_id=project_id, dimension=dimension, text=text, priority=2))
     repo.save_questions(questions)
     return project_id
 

@@ -96,14 +96,15 @@ def no_project() -> None:
     st.markdown("### 研究阶段")
     st.caption("研究需求 → 研究框架 → 资料来源 → 证据矩阵 → 研究简报")
     st.markdown("### 创建在线研究任务")
-    st.caption("提交后先生成七维研究框架；框架批准后，系统才会启动实时网络检索。")
+    st.caption("提交后先生成七维研究框架，可追加自定义问题；框架批准后，系统才会启动实时网络检索。")
     with st.form("online_task_form", clear_on_submit=False):
         topic = st.text_input("研究行业", value="具身智能", key="online_topic")
         form_cols = st.columns(2)
         geography = form_cols[0].text_input("地域口径", value="中国为主，全球对照", key="online_geography")
         time_range = form_cols[1].text_input("时间范围", value="2024–2026", key="online_time_range")
         purpose = st.text_input("研究用途", value="内部项目讨论", key="online_purpose")
-        focus_questions = st.text_area("补充重点问题（可选）", placeholder="例如：重点关注商业化订单、融资与供应链国产化", key="online_focus_questions")
+        focus_questions = st.text_area("补充重点问题（可选）", placeholder="每行一个问题。示例：\n代表性团队：具身智能领域有哪些代表性创业团队？\n重点关注商业化订单与供应链国产化", key="online_focus_questions")
+        st.caption("自定义问题会加入研究框架，与七维问题一起逐题确认；每行可用「维度名：问题」自定义维度。")
         submitted = st.form_submit_button("创建并进入研究框架", type="primary")
     if submitted and topic.strip():
         st.session_state.project_id = create_online_project(repo, topic.strip(), geography.strip(), time_range.strip(), purpose.strip(), focus_questions.strip())
@@ -150,24 +151,26 @@ elif page == "研究框架":
     render_kpi_row(metrics)
     questions = repo.list_questions(pid)
     approved = sum(q.approved and not q.deleted for q in questions)
-    st.markdown(f"### 七维框架覆盖　`{approved}/{len(questions)}` 个问题已批准")
+    st.markdown(f"### 研究框架覆盖　`{approved}/{len(questions)}` 个问题已批准")
     updates = []
     for question in questions:
         with st.container(border=True):
-            left, middle, right = st.columns([4, 1, 1])
+            left, middle, right = st.columns([4, 1, 1.2])
             left.markdown(f"**{question.dimension}**")
             text = left.text_input("研究问题", question.text, key=f"text_{question.id}", label_visibility="collapsed")
             priority = middle.selectbox("优先级", [1, 2, 3], index=question.priority - 1, key=f"priority_{question.id}")
             approved_value = right.checkbox("已批准", question.approved, key=f"approved_{question.id}")
-            updates.append(question.model_copy(update={"text": text, "priority": priority, "approved": approved_value}))
+            deleted_value = right.checkbox("删除此问题", question.deleted, key=f"deleted_{question.id}")
+            updates.append(question.model_copy(update={"text": text, "priority": priority, "approved": approved_value, "deleted": deleted_value}))
     action_left, action_right = st.columns([1, 2])
     if action_left.button("保存框架", key="save_framework"):
         repo.save_questions(updates)
         st.success("框架已保存，审核事件已保留在本地项目中。")
-    ready = all(q.approved and not q.deleted for q in updates) and len({q.dimension for q in updates if not q.deleted}) == len(DIMENSIONS)
+    kept_dimensions = {q.dimension for q in updates if not q.deleted}
+    ready = all(q.approved and not q.deleted for q in updates) and all(d in kept_dimensions for d in DIMENSIONS)
     action_right.button("确认框架并进入资料来源", disabled=not ready, key="confirm_framework")
     if not ready:
-        st.warning("确认阻断：每个维度至少保留一题，且全部保留问题须标为已批准。")
+        st.warning("确认阻断：七个标准维度须各保留至少一题，且所有保留问题（含自定义）须标为已批准。")
     else:
         st.success("框架已满足进入资料来源的门禁条件。")
         st.info("下一步：进入“资料来源”，点击“开始自动网络检索”。系统会按每个问题生成中英文查询并去重来源。")
@@ -180,7 +183,9 @@ elif page == "资料来源":
     if project.id.startswith("online-"):
         st.markdown("### 自动网络检索")
         online_config = current_online_config()
-        framework_ready = all(question.approved and not question.deleted for question in repo.list_questions(pid)) and len({question.dimension for question in repo.list_questions(pid) if not question.deleted}) == len(DIMENSIONS)
+        kept = [question for question in repo.list_questions(pid) if not question.deleted]
+        kept_dimensions = {question.dimension for question in kept}
+        framework_ready = all(question.approved for question in kept) and all(d in kept_dimensions for d in DIMENSIONS)
         if online_config.missing_keys:
             st.warning(f"实时检索尚未就绪：当前缺少必需配置 {', '.join(online_config.missing_keys)}。")
             st.caption("将 TAVILY_API_KEY 放入环境变量或 Streamlit Secrets 后重启应用；Dify 证据与简报工作流为可选增强。")
