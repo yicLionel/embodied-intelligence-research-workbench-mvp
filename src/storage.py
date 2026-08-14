@@ -65,7 +65,11 @@ class WorkbenchRepository:
 
     def list_questions(self, project_id: str) -> list[ResearchQuestion]:
         with self.connection() as c:
-            rows = c.execute("SELECT * FROM questions WHERE project_id=? ORDER BY dimension,id", (project_id,)).fetchall()
+            # Question ids are generated in framework order (q-1, q-2, …).
+            # Keep that order in the UI instead of letting SQLite alphabetize
+            # the Chinese dimension labels, which would make the fixed seven-
+            # dimension framework feel inconsistent between pages.
+            rows = c.execute("SELECT * FROM questions WHERE project_id=? ORDER BY id", (project_id,)).fetchall()
         return [ResearchQuestion.model_validate({**dict(r), "approved": bool(r["approved"]), "deleted": bool(r["deleted"])}) for r in rows]
 
     def save_sources(self, sources: list[SourceRecord]) -> None:

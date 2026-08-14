@@ -1,3 +1,4 @@
+import os
 from pathlib import Path
 
 import streamlit as st
@@ -6,6 +7,12 @@ from src.briefs import build_formal, build_preview, validate_sentence_maps
 from src.demo import DIMENSIONS, load_demo_project
 from src.domain import ReviewStatus
 from src.exporting import evidence_csv, formal_markdown
+from src.online_research import (
+    OnlineResearchConfig,
+    create_online_project,
+    generate_brief_with_dify,
+    run_online_research,
+)
 from src.quality import sort_key
 from src.storage import WorkbenchRepository
 from src.ui import (
@@ -20,7 +27,7 @@ from src.ui import (
 
 st.set_page_config(page_title="具身智能研究终端", page_icon="◈", layout="wide", initial_sidebar_state="expanded")
 inject_terminal_theme()
-repo = WorkbenchRepository(Path("data") / "workbench.sqlite3")
+repo = WorkbenchRepository(Path(os.getenv("APP_DB_PATH", "data/workbench.sqlite3")))
 
 st.sidebar.markdown('<div class="terminal-eyebrow">Research Desk / 01</div>', unsafe_allow_html=True)
 st.sidebar.markdown("## 具身智能研究终端")
@@ -35,11 +42,29 @@ if st.sidebar.button("装载演示研究", key="load_demo"):
 
 if "project_id" not in st.session_state:
     st.session_state.project_id = None
+if "online_result" not in st.session_state:
+    st.session_state.online_result = None
 pid = st.session_state.project_id
 project = repo.get_project(pid) if pid else None
 evidence = repo.list_evidence(pid) if pid else []
 sources = repo.list_sources(pid) if pid else []
 metrics = project_metrics(evidence, sources) if project else None
+
+
+def current_online_config() -> OnlineResearchConfig:
+    config = OnlineResearchConfig.from_env()
+    try:
+        secret_values = {name: st.secrets.get(name, getattr(config, name.lower())) for name in ["DIFY_BASE_URL", "TAVILY_API_KEY", "DIFY_PLAN_API_KEY", "DIFY_EVIDENCE_API_KEY", "DIFY_BRIEF_API_KEY"]}
+    except (FileNotFoundError, KeyError, AttributeError, TypeError):
+        return config
+    return OnlineResearchConfig(
+        dify_base_url=secret_values["DIFY_BASE_URL"],
+        tavily_api_key=secret_values["TAVILY_API_KEY"],
+        dify_plan_api_key=secret_values["DIFY_PLAN_API_KEY"],
+        dify_evidence_api_key=secret_values["DIFY_EVIDENCE_API_KEY"],
+        dify_brief_api_key=secret_values["DIFY_BRIEF_API_KEY"],
+        timeout_seconds=config.timeout_seconds,
+    )
 
 if project and metrics:
     render_terminal_header(project, page, metrics)
@@ -50,6 +75,11 @@ if project and metrics:
         st.sidebar.markdown(f"`{marker}`  {index + 1:02d}  {label}")
     st.sidebar.markdown("---")
     st.sidebar.caption(f"项目 ID  /  {project.id}")
+    if project.id.startswith("online-"):
+        online_config = current_online_config()
+        st.sidebar.caption("在线研究配置")
+        st.sidebar.markdown("Tavily：" + ("已配置" if online_config.tavily_api_key else "未配置"))
+        st.sidebar.markdown("Dify：" + ("已配置" if online_config.dify_evidence_api_key else "可选/未配置"))
 else:
     st.sidebar.info("尚未载入项目。点击上方按钮进入离线演示。")
 
@@ -65,6 +95,20 @@ def no_project() -> None:
         column.markdown(f'<div class="terminal-panel"><div class="panel-title">{title}</div><div>{copy}</div></div>', unsafe_allow_html=True)
     st.markdown("### 研究阶段")
     st.caption("研究需求 → 研究框架 → 资料来源 → 证据矩阵 → 研究简报")
+    st.markdown("### 创建在线研究任务")
+    st.caption("提交后先生成七维研究框架；框架批准后，系统才会启动实时网络检索。")
+    with st.form("online_task_form", clear_on_submit=False):
+        topic = st.text_input("研究行业", value="具身智能", key="online_topic")
+        form_cols = st.columns(2)
+        geography = form_cols[0].text_input("地域口径", value="中国为主，全球对照", key="online_geography")
+        time_range = form_cols[1].text_input("时间范围", value="2024–2026", key="online_time_range")
+        purpose = st.text_input("研究用途", value="内部项目讨论", key="online_purpose")
+        focus_questions = st.text_area("补充重点问题（可选）", placeholder="例如：重点关注商业化订单、融资与供应链国产化", key="online_focus_questions")
+        submitted = st.form_submit_button("创建并进入研究框架", type="primary")
+    if submitted and topic.strip():
+        st.session_state.project_id = create_online_project(repo, topic.strip(), geography.strip(), time_range.strip(), purpose.strip(), focus_questions.strip())
+        st.session_state.online_result = None
+        st.rerun()
 
 
 if not project:
@@ -126,12 +170,36 @@ elif page == "研究框架":
         st.warning("确认阻断：每个维度至少保留一题，且全部保留问题须标为已批准。")
     else:
         st.success("框架已满足进入资料来源的门禁条件。")
+        st.info("下一步：进入“资料来源”，点击“开始自动网络检索”。系统会按每个问题生成中英文查询并去重来源。")
 elif page == "资料来源":
     st.markdown('<div class="terminal-eyebrow">03 / Source Room</div>', unsafe_allow_html=True)
     st.title("资料来源")
     st.markdown('<div class="terminal-subtitle">先看来源角色与可访问性，再决定哪些材料值得进入证据矩阵。</div>', unsafe_allow_html=True)
     render_kpi_row(metrics)
     st.markdown(f"### 来源可访问率　`{metrics['source_access_rate']}%`")
+    if project.id.startswith("online-"):
+        st.markdown("### 自动网络检索")
+        online_config = current_online_config()
+        framework_ready = all(question.approved and not question.deleted for question in repo.list_questions(pid)) and len({question.dimension for question in repo.list_questions(pid) if not question.deleted}) == len(DIMENSIONS)
+        if online_config.missing_keys:
+            st.warning(f"实时检索尚未就绪：当前缺少必需配置 {', '.join(online_config.missing_keys)}。")
+            st.caption("将 TAVILY_API_KEY 放入环境变量或 Streamlit Secrets 后重启应用；Dify 证据与简报工作流为可选增强。")
+        elif online_config.optional_missing_keys:
+            st.info("Tavily 已就绪。未配置 Dify 时会保留检索摘录为待审核候选证据；配置后可自动抽取证据并生成专业简报。")
+        if not framework_ready:
+            st.info("检索暂未开启：请先在研究框架页批准全部保留问题。")
+        if st.button("开始自动网络检索", type="primary", disabled=not framework_ready or not online_config.ready_for_search, key="run_online_research"):
+            with st.spinner("正在检索公开网页、去重来源并整理候选证据…"):
+                st.session_state.online_result = run_online_research(repo, pid, online_config)
+            st.rerun()
+        result = st.session_state.online_result
+        if result:
+            if result.status in {"succeeded", "partial"}:
+                st.success(f"检索完成：{result.source_count} 个来源，{result.evidence_count} 条候选证据，模式：{result.provider_mode}。")
+            else:
+                st.error("检索未启动：" + "；".join(result.errors))
+            if result.errors:
+                st.caption("部分单元失败已保留；可在配置修复后重新运行。错误摘要：" + "；".join(result.errors[:3]))
     access_filter = st.selectbox("访问状态", ["全部来源", "仅可访问", "仅不可访问"], key="source_access_filter")
     role_filter = st.selectbox("来源角色", ["全部角色"] + sorted({source.source_role for source in sources}), key="source_role_filter")
     visible_sources = [source for source in sources if (access_filter == "全部来源" or (access_filter == "仅可访问" and source.accessible) or (access_filter == "仅不可访问" and not source.accessible)) and (role_filter == "全部角色" or source.source_role == role_filter)]
@@ -218,10 +286,14 @@ elif page == "研究简报":
                 st.error("验证阻断：尚无可用的已确认事实。")
             else:
                 st.session_state.formal = formal_candidate
+                if project.id.startswith("online-"):
+                    brief_config = current_online_config()
+                    st.session_state.formal_markdown = generate_brief_with_dify(brief_config, project, evidence) or formal_markdown(formal_candidate)
         active_formal = st.session_state.get("formal")
         if active_formal:
             st.success("正式模式：仅使用已确认且可追溯的证据。")
-            st.download_button("下载正式 Markdown", formal_markdown(active_formal), "research-brief.md", key="download_markdown")
+            markdown_output = st.session_state.get("formal_markdown") or formal_markdown(active_formal)
+            st.download_button("下载正式 Markdown", markdown_output, "research-brief.md", key="download_markdown")
             st.download_button("下载证据 CSV", evidence_csv(evidence), "evidence.csv", key="download_csv")
             for sentence in active_formal.sentences:
                 st.write(f"- {sentence.text}")

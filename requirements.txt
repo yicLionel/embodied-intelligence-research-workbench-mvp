@@ -1,3 +1,4 @@
 streamlit>=1.51,<2
 pydantic>=2.11,<3
 pandas>=2.2,<3
+httpx>=0.28,<1
