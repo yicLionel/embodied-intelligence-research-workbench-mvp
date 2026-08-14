@@ -242,6 +242,15 @@ def _category(dimension: str) -> str:
     return "industry"
 
 
+def _clean_quote(text: str) -> str:
+    """清洗网页原文摘录：移除 markdown 图片、HTML 标签与空链接噪声，保留可读正文。"""
+    text = re.sub(r"!\[[^\]]*\]\([^)]*\)", "", text)      # markdown 图片 ![..](..)
+    text = re.sub(r"<[^>]+>", "", text)                    # HTML 标签
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", text)   # markdown 链接只保留可见文本
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 def _fallback_evidence(project: Project, questions: list[ResearchQuestion], hits_by_dimension: dict[str, list[SearchHit]]) -> list[EvidenceRecord]:
     records: list[EvidenceRecord] = []
     for question in questions:
@@ -251,7 +260,9 @@ def _fallback_evidence(project: Project, questions: list[ResearchQuestion], hits
         matching = (hits_by_dimension.get(dimension) or [None])[0]
         if not matching:
             continue
-        quote = (matching.raw_content or matching.content).strip().replace("\n", " ")[:900]
+        raw = (matching.raw_content or "").strip()
+        content = (matching.content or "").strip()
+        quote = _clean_quote(content if content else raw)[:900]
         claim = re.split(r"(?<=[。.!?])\s+", quote)[0][:240] or matching.title
         records.append(EvidenceRecord(id=_stable_id("ev", f"{project.id}|{question.id}|{matching.url}"), project_id=project.id, question_id=question.id, dimension=dimension, claim=claim, source_id=_stable_id("src", matching.url), source_title=matching.title, source_url=matching.url, source_reference="Tavily 检索结果摘录；待人工回查原文", source_accessible=True, publication_date=matching.published_date, evidence_quote=quote, geography=project.geography, period=project.time_range, definition_scope=project.topic, category=_category(dimension), risk_flags=["missing_evidence"] if not quote else []))
     return records

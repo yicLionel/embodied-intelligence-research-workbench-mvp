@@ -122,6 +122,33 @@ def test_run_online_research_generates_evidence_for_custom_questions(tmp_path, m
     assert all(item.review_status.value == "pending" for item in evidence)
 
 
+def test_fallback_evidence_cleans_markdown_and_html_noise(tmp_path, monkeypatch):
+    from src.online_research import _clean_quote
+    noisy = "[![Image 1](https://x.com/a.png)](javascript:void(0)) <div>市场增速 35%</div> ![](/uploads/x.png) [正文链接](https://x.com/doc)"
+    cleaned = _clean_quote(noisy)
+    assert "![Image 1]" not in cleaned and "<div>" not in cleaned and "javascript" not in cleaned
+    assert "市场增速 35%" in cleaned
+    assert "正文链接" in cleaned
+
+    repo = WorkbenchRepository(tmp_path / "online.sqlite3")
+    project_id = create_online_project(repo, "具身智能", "中国", "2024–2026", "内部讨论")
+    questions = [q.model_copy(update={"approved": True}) for q in repo.list_questions(project_id)]
+    repo.save_questions(questions)
+
+    class NoisyTavily:
+        def __init__(self, api_key, timeout):
+            pass
+
+        def search(self, query):
+            return [SearchHit("行业报告", "https://example.com/r", "干净摘录：市场 35%。", date(2026, 1, 1), raw_content="[![图](https://x.png)](javascript:void(0)) 噪声正文")]
+
+    monkeypatch.setattr(online_research, "TavilyClient", NoisyTavily)
+    result = run_online_research(repo, project_id, OnlineResearchConfig(tavily_api_key="tv-test"))
+    evidence = repo.list_evidence(project_id)
+    assert result.evidence_count == len(DIMENSIONS)
+    assert all("![Image" not in (item.evidence_quote or "") and "javascript" not in (item.evidence_quote or "") for item in evidence)
+
+
 def test_run_online_research_persists_deduped_sources_and_each_dimension_evidence(tmp_path, monkeypatch):
     repo = WorkbenchRepository(tmp_path / "online.sqlite3")
     project_id = create_online_project(repo, "物流机器人", "中国", "2025–2026", "内部讨论")
