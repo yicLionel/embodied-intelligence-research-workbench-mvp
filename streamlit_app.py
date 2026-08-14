@@ -152,6 +152,10 @@ elif page == "研究框架":
     questions = repo.list_questions(pid)
     approved = sum(q.approved and not q.deleted for q in questions)
     st.markdown(f"### 研究框架覆盖　`{approved}/{len(questions)}` 个问题已批准")
+    kept = [question for question in questions if not question.deleted]
+    if st.button("一键批准全部问题", key="approve_all_questions", disabled=approved == len(kept)):
+        repo.save_questions([question.model_copy(update={"approved": True}) for question in kept])
+        st.rerun()
     updates = []
     for question in questions:
         with st.container(border=True):
@@ -237,6 +241,11 @@ elif page == "证据矩阵":
         if status_match and risk_match:
             filtered.append(item)
     st.caption(f"风险优先队列 · 显示 {len(filtered)} / {len(evidence)} 条记录。")
+    confirmable_pending = [item for item in evidence if item.review_status.value == "pending" and item.can_confirm]
+    if st.button(f"一键确认 {len(confirmable_pending)} 条合格证据", key="confirm_all_evidence", disabled=not confirmable_pending):
+        for item in confirmable_pending:
+            repo.set_review_status(item.id, ReviewStatus.CONFIRMED)
+        st.rerun()
     for item in filtered:
         risk_text = ", ".join(item.risk_flags) or "clean"
         with st.expander(f"{item.dimension}  ·  {item.review_status.value}  ·  {risk_text}"):
