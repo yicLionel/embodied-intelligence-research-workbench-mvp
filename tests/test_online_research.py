@@ -61,6 +61,11 @@ def test_online_config_reports_missing_provider_keys():
     assert config.optional_missing_keys == ["DIFY_EVIDENCE_API_KEY", "DIFY_BRIEF_API_KEY"]
 
 
+def test_online_config_uses_safe_timeout_when_environment_value_is_invalid(monkeypatch):
+    monkeypatch.setenv("ONLINE_RESEARCH_TIMEOUT", "not-a-number")
+    assert OnlineResearchConfig.from_env().timeout_seconds == 60.0
+
+
 def test_create_online_project_persists_user_scope_and_fixed_framework(tmp_path):
     repo = WorkbenchRepository(tmp_path / "online.sqlite3")
     project_id = create_online_project(repo, "物流机器人", "中国", "2025–2026", "内部讨论", "关注订单")

@@ -37,13 +37,17 @@ class OnlineResearchConfig:
 
     @classmethod
     def from_env(cls) -> OnlineResearchConfig:
+        try:
+            timeout_seconds = float(os.getenv("ONLINE_RESEARCH_TIMEOUT", "60"))
+        except ValueError:
+            timeout_seconds = 60.0
         return cls(
             dify_base_url=os.getenv("DIFY_BASE_URL", "https://api.dify.ai/v1"),
             tavily_api_key=os.getenv("TAVILY_API_KEY", ""),
             dify_plan_api_key=os.getenv("DIFY_PLAN_API_KEY", ""),
             dify_evidence_api_key=os.getenv("DIFY_EVIDENCE_API_KEY", ""),
             dify_brief_api_key=os.getenv("DIFY_BRIEF_API_KEY", ""),
-            timeout_seconds=float(os.getenv("ONLINE_RESEARCH_TIMEOUT", "60")),
+            timeout_seconds=timeout_seconds,
         )
 
     @property
@@ -143,8 +147,13 @@ class DifyWorkflowClient:
                 response = client.post(f"{self.base_url}/workflows/run", headers={"Authorization": f"Bearer {self.api_key}", "Content-Type": "application/json"}, json=request_body)
         if response.is_error:
             return WorkflowResult(None, "failed", {}, f"Dify HTTP {response.status_code}: {response.text[:240]}")
-        payload = response.json()
+        try:
+            payload = response.json()
+        except ValueError:
+            return WorkflowResult(None, "failed", {}, "Dify 返回了不可解析的 JSON")
         data = payload.get("data", payload)
+        if not isinstance(data, dict):
+            return WorkflowResult(None, "failed", {}, "Dify 返回结构缺少 data 对象")
         return WorkflowResult(payload.get("workflow_run_id") or data.get("id"), data.get("status", payload.get("status", "succeeded")), parse_workflow_output(data.get("outputs", data)), data.get("error"))
 
 
@@ -171,7 +180,7 @@ class TavilyClient:
             if not url:
                 continue
             published = _parse_date(item.get("published_date")) or datetime.now(timezone.utc).date()
-            hits.append(SearchHit(item.get("title", url), canonical_url(url), item.get("content", ""), published, "research" if item.get("score", 0) >= 0.7 else "lead", item.get("raw_content", "")))
+            hits.append(SearchHit(str(item.get("title") or url), canonical_url(url), str(item.get("content") or ""), published, "research" if item.get("score", 0) >= 0.7 else "lead", str(item.get("raw_content") or "")))
         return hits
 
 
@@ -272,7 +281,9 @@ def _evidence_from_dify(project: Project, questions: list[ResearchQuestion], ite
         url = canonical_url(item.get("source_url") or item.get("url") or "")
         source = by_url.get(url) or sources[index % len(sources)]
         quote = str(item.get("evidence_quote") or item.get("quote") or "").strip()
-        records.append(EvidenceRecord(id=_stable_id("ev", f"{project.id}|{question.id}|{index}|{url}"), project_id=project.id, question_id=question.id, dimension=question.dimension, claim=str(item.get("claim") or "证据不足"), source_id=source.id, source_title=source.title, source_url=source.url, source_reference=source.reference, source_accessible=source.accessible, publication_date=source.publication_date, evidence_quote=quote, geography=item.get("geography") or project.geography, period=item.get("period") or project.time_range, unit=item.get("unit"), definition_scope=item.get("definition_scope") or project.topic, category=item.get("category") or _category(question.dimension), risk_flags=list(item.get("risk_flags") or (["missing_evidence"] if not quote else []))) )
+        raw_flags = item.get("risk_flags") or (["missing_evidence"] if not quote else [])
+        risk_flags = [raw_flags] if isinstance(raw_flags, str) else list(raw_flags)
+        records.append(EvidenceRecord(id=_stable_id("ev", f"{project.id}|{question.id}|{index}|{url}"), project_id=project.id, question_id=question.id, dimension=question.dimension, claim=str(item.get("claim") or "证据不足"), source_id=source.id, source_title=source.title, source_url=source.url, source_reference=source.reference, source_accessible=source.accessible, publication_date=source.publication_date, evidence_quote=quote, geography=item.get("geography") or project.geography, period=item.get("period") or project.time_range, unit=item.get("unit"), definition_scope=item.get("definition_scope") or project.topic, category=item.get("category") or _category(question.dimension), risk_flags=risk_flags))
     return records
 
 
