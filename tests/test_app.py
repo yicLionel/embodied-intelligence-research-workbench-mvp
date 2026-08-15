@@ -83,3 +83,19 @@ def test_evidence_one_click_confirm_all_qualifying(monkeypatch, tmp_path):
     statuses = {item.id: item.review_status.value for item in repo.list_evidence("demo-embodied-intelligence")}
     assert sum(v == "confirmed" for v in statuses.values()) == 6
     assert statuses["e-5"] == "pending", "阻塞证据不应被一键确认"
+
+
+def test_sidebar_project_switcher_reopens_existing_project(monkeypatch, tmp_path):
+    from src.online_research import create_online_project
+
+    monkeypatch.setenv("APP_DB_PATH", str(tmp_path / "switch.sqlite3"))
+    repo = WorkbenchRepository(Path(tmp_path / "switch.sqlite3"))
+    online_id = create_online_project(repo, "物流机器人", "中国", "2025–2026", "内部讨论")
+    app = AppTest.from_file(Path(__file__).parents[1] / "streamlit_app.py").run()
+    app.button(key="load_demo").click().run()
+    selector = app.selectbox(key="project_switch_select")
+    assert any("物流机器人" in option for option in selector.options), "已有在线项目应出现在切换器里"
+    selector.select(online_id).run()
+    app.button(key="open_selected_project").click().run()
+    assert "物流机器人" in " ".join(item.value for item in app.markdown), "切换后应显示所选项目的研究范围"
+    assert "online-" in " ".join(item.value for item in app.caption), "切换后应显示在线项目 ID"

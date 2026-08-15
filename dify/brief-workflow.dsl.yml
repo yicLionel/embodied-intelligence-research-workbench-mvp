@@ -1,0 +1,249 @@
+# Dify Workflow DSL — 正式简报生成（Brief Generation）
+#
+# 对应 src/online_research.py 中 DIFY_BRIEF_API_KEY 的工作流：
+#   - 输入：topic / geography / time_range / evidence(JSON，已人工确认的证据数组)
+#   - 输出：markdown（正式简报 Markdown 文本）
+#
+# 导入方式：cloud.dify.ai → 工作室 → 创建应用 → 导入 DSL。
+# 导入后请检查 LLM 节点是否选中了你账号里已配置的模型，然后点击「发布」。
+# 若导入报版本不支持，把顶层 version 和 workflow.version 改为 "0.6.0" 再试。
+app:
+  description: "基于已人工确认的证据记录，生成结构化、可追溯的正式行业研究简报（Markdown）。"
+  icon: "📝"
+  icon_type: emoji
+  icon_background: "#FFF3C4"
+  mode: workflow
+  name: "具身智能正式简报"
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: "0.7.0"
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods:
+        - local_file
+        - remote_url
+      max_file_upload_limit: 5
+      number_limits: 3
+    opening_statement: ""
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: start
+          targetType: llm
+        id: "start1765000001001-llm1765000001002-source-target"
+        selected: false
+        source: "start1765000001001"
+        sourceHandle: source
+        target: "llm1765000001002"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: code
+        id: "llm1765000001002-strip_code1765000001004-source-target"
+        selected: false
+        source: "llm1765000001002"
+        sourceHandle: source
+        target: "strip_code1765000001004"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: end
+        id: "strip_code1765000001004-end1765000001003-source-target"
+        selected: false
+        source: "strip_code1765000001004"
+        sourceHandle: source
+        target: "end1765000001003"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+    nodes:
+      - data:
+          desc: "简报范围与已确认证据"
+          selected: false
+          title: "开始"
+          type: start
+          variables:
+            - label: "研究主题"
+              variable: topic
+              type: paragraph
+              required: true
+              max_length: 500
+            - label: "地域口径"
+              variable: geography
+              type: text-input
+              required: true
+              max_length: 100
+            - label: "时间范围"
+              variable: time_range
+              type: text-input
+              required: true
+              max_length: 100
+            - label: "已确认证据列表"
+              variable: evidence
+              type: json_object
+              required: true
+        id: "start1765000001001"
+        position:
+          x: 60
+          y: 220
+        positionAbsolute:
+          x: 60
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 320
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: "只用已确认证据生成正式简报 Markdown"
+          model:
+            completion_params:
+              temperature: 0.3
+            mode: chat
+            name: gpt-4o-mini
+            provider: langgenius/openai/openai
+          prompt_template:
+            - id: "brief-sys-1765000001002"
+              role: system
+              text: |
+                你是精品投行 FA 的行业研究简报撰写人。输入 evidence 是一个 JSON 对象，其 items 字段是已经人工确认的证据记录数组；你要输出一份结构化的正式简报 Markdown，可直接作为内部讨论底稿。规则：
+
+                1. 只能使用输入证据中的事实、数字和引文；不得补充输入中没有的信息，不得臆造数据。
+                2. 按以下固定维度组织章节：市场定义与边界；市场规模与 CAGR；产业链与关键环节；竞争格局与标杆公司；技术趋势与能力演进；融资活动与商业化进展；风险、争议与关键假设。没有任何已确认证据的维度，写「暂无已确认证据」。
+                3. 每个关键数字必须标注地域、时期、单位与定义口径；同一指标存在冲突或口径差异时，并列呈现不同口径，不擅自选择其中一个。
+                4. 每条结论后注明出处，格式为「（来源：{source_title}｜{source_url}｜发布日期 {publication_date}）」；日期未知写「发布日期未知」。
+                5. 简报顶部给出：主题、地域口径、时间范围、证据数量（按 items 数组长度统计）。
+                6. 使用简洁、专业的简体中文，Markdown 格式（章节标题用 ##，列表用 -，正文用普通段落），不用表格以外的复杂排版。
+                7. 直接输出简报 Markdown 正文；不要输出任何思考过程、推理、解释或分析，不要使用 <think> 标签。
+            - id: "brief-user-1765000001002"
+              role: user
+              text: |
+                研究主题：{{#start1765000001001.topic#}}
+                地域口径：{{#start1765000001001.geography#}}
+                时间范围：{{#start1765000001001.time_range#}}
+
+                已人工确认的证据记录（evidence 对象的 items 字段是证据数组；优先使用每条记录的 claim、evidence_quote、source_title、source_url、publication_date、geography、period、unit、definition_scope、category 字段）：
+                {{#start1765000001001.evidence#}}
+
+                请按系统提示生成正式简报 Markdown。
+          selected: false
+          title: "简报生成 LLM"
+          type: llm
+          vision:
+            enabled: false
+        id: "llm1765000001002"
+        position:
+          x: 400
+          y: 220
+        positionAbsolute:
+          x: 400
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 320
+      - data:
+          desc: "剥离推理模型的 <think> 块与 <!--dify-*-reasoning--> 标记，输出干净 Markdown"
+          selected: false
+          title: "清洗简报"
+          type: code
+          code_language: python3
+          code: |
+            import re
+
+
+            def main(llm_text: str) -> dict:
+                text = (llm_text or "")
+                text = re.sub(r"<\s*think\s*>.*?<\s*/\s*think\s*>", "", text, flags=re.S)
+                text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+                text = re.sub(r"\n{3,}", "\n\n", text).strip()
+                return {"markdown": text}
+          outputs:
+            markdown:
+              children: null
+              type: string
+          variables:
+            - value_selector:
+                - "llm1765000001002"
+                - text
+              value_type: string
+              variable: llm_text
+        id: "strip_code1765000001004"
+        position:
+          x: 740
+          y: 220
+        positionAbsolute:
+          x: 740
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 200
+      - data:
+          desc: "输出 markdown 文本，供工作台简报页展示与导出"
+          outputs:
+            - variable: markdown
+              value_selector:
+                - "strip_code1765000001004"
+                - markdown
+          selected: false
+          title: "结束"
+          type: end
+        id: "end1765000001003"
+        position:
+          x: 1080
+          y: 220
+        positionAbsolute:
+          x: 1080
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 120
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.85
+  id: "wf-brief-1765000001000"
+  name: "具身智能正式简报"
+  title: "具身智能正式简报"
+  type: workflow
+  version: "0.7.0"

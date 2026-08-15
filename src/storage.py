@@ -58,6 +58,12 @@ class WorkbenchRepository:
             row = c.execute("SELECT * FROM projects WHERE id=?", (project_id,)).fetchone()
         return Project.model_validate(dict(row)) if row else None
 
+    def list_projects(self) -> list[Project]:
+        with self.connection() as c:
+            # rowid 近似创建顺序：演示项目先建、在线项目后建，旧项目排前面。
+            rows = c.execute("SELECT * FROM projects ORDER BY rowid").fetchall()
+        return [Project.model_validate(dict(r)) for r in rows]
+
     def save_questions(self, questions: list[ResearchQuestion]) -> None:
         with self.transaction() as c:
             for q in questions:

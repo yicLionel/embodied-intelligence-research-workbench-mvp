@@ -1,0 +1,389 @@
+# Dify Workflow DSL — 证据结构化（Evidence Extraction）
+#
+# 对应 src/online_research.py 中 DIFY_EVIDENCE_API_KEY 的工作流：
+#   - 输入：topic / geography / time_range / questions(JSON) / sources(JSON)
+#   - 输出：evidence（JSON 数组，字段见下方系统提示中的 schema）
+#
+# 导入方式：cloud.dify.ai → 工作室 → 创建应用 → 导入 DSL。
+# 导入后请检查 LLM 节点是否选中了你账号里已配置的模型，然后点击「发布」。
+# 若导入报版本不支持，把顶层 version 和 workflow.version 改为 "0.6.0" 再试。
+app:
+  description: "把 Tavily 公开网页检索结果结构化成本项目的候选证据记录（供证据矩阵人工审核）。"
+  icon: "🧩"
+  icon_type: emoji
+  icon_background: "#E4FBCC"
+  mode: workflow
+  name: "具身智能证据提取"
+  use_icon_as_answer_icon: false
+dependencies: []
+kind: app
+version: "0.7.0"
+workflow:
+  conversation_variables: []
+  environment_variables: []
+  features:
+    file_upload:
+      enabled: false
+      allowed_file_extensions: []
+      allowed_file_types: []
+      allowed_file_upload_methods:
+        - local_file
+        - remote_url
+      max_file_upload_limit: 5
+      number_limits: 3
+    opening_statement: ""
+    retriever_resource:
+      enabled: true
+    sensitive_word_avoidance:
+      enabled: false
+    speech_to_text:
+      enabled: false
+    suggested_questions: []
+    suggested_questions_after_answer:
+      enabled: false
+    text_to_speech:
+      enabled: false
+  graph:
+    edges:
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: start
+          targetType: code
+        id: "start1765000000001-prepare_code1765000000002-source-target"
+        selected: false
+        source: "start1765000000001"
+        sourceHandle: source
+        target: "prepare_code1765000000002"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: llm
+        id: "prepare_code1765000000002-llm1765000000003-source-target"
+        selected: false
+        source: "prepare_code1765000000002"
+        sourceHandle: source
+        target: "llm1765000000003"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: llm
+          targetType: code
+        id: "llm1765000000003-parse_code1765000000004-source-target"
+        selected: false
+        source: "llm1765000000003"
+        sourceHandle: source
+        target: "parse_code1765000000004"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+      - data:
+          isInIteration: false
+          isInLoop: false
+          sourceType: code
+          targetType: end
+        id: "parse_code1765000000004-end1765000000005-source-target"
+        selected: false
+        source: "parse_code1765000000004"
+        sourceHandle: source
+        target: "end1765000000005"
+        targetHandle: target
+        type: custom
+        zIndex: 0
+    nodes:
+      - data:
+          desc: "研究范围输入"
+          selected: false
+          title: "开始"
+          type: start
+          variables:
+            - label: "研究主题"
+              variable: topic
+              type: paragraph
+              required: true
+              max_length: 500
+            - label: "地域口径"
+              variable: geography
+              type: text-input
+              required: true
+              max_length: 100
+            - label: "时间范围"
+              variable: time_range
+              type: text-input
+              required: true
+              max_length: 100
+            - label: "研究问题列表"
+              variable: questions
+              type: json_object
+              required: true
+            - label: "网页来源列表"
+              variable: sources
+              type: json_object
+              required: true
+        id: "start1765000000001"
+        position:
+          x: 60
+          y: 220
+        positionAbsolute:
+          x: 60
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 380
+      - data:
+          desc: "截断超长正文并组装为紧凑 JSON，控制 LLM 上下文长度"
+          selected: false
+          title: "截断并组装输入"
+          type: code
+          code_language: python3
+          code: |
+            import json
+
+
+            def _unwrap(value):
+                # Dify json_object 输入是 {"items": [...]} 包装的对象；兼容直接传数组的 UI 测试场景。
+                if isinstance(value, dict):
+                    items = value.get("items")
+                    return items if isinstance(items, list) else []
+                if isinstance(value, list):
+                    return value
+                return []
+
+
+            def main(topic: str, geography: str, time_range: str, questions: dict, sources: dict) -> dict:
+                qs = []
+                for q in _unwrap(questions)[:20]:
+                    if isinstance(q, dict):
+                        qs.append({
+                            "dimension": str(q.get("dimension") or "")[:80],
+                            "text": str(q.get("text") or "")[:300],
+                            "id": str(q.get("id") or "")[:60],
+                        })
+
+                srcs = []
+                for s in _unwrap(sources)[:30]:
+                    if not isinstance(s, dict):
+                        continue
+                    srcs.append({
+                        "title": str(s.get("title") or "")[:200],
+                        "url": str(s.get("url") or ""),
+                        "content": str(s.get("content") or "")[:1200],
+                        "raw_content": str(s.get("raw_content") or "")[:4000],
+                        "published_date": str(s.get("published_date") or ""),
+                        "source_role": str(s.get("source_role") or "lead"),
+                    })
+
+                payload = {
+                    "topic": topic,
+                    "geography": geography,
+                    "time_range": time_range,
+                    "questions": qs,
+                    "sources": srcs,
+                }
+                return {"payload": json.dumps(payload, ensure_ascii=False)}
+          outputs:
+            payload:
+              children: null
+              type: string
+          variables:
+            - value_selector:
+                - "start1765000000001"
+                - topic
+              value_type: string
+              variable: topic
+            - value_selector:
+                - "start1765000000001"
+                - geography
+              value_type: string
+              variable: geography
+            - value_selector:
+                - "start1765000000001"
+                - time_range
+              value_type: string
+              variable: time_range
+            - value_selector:
+                - "start1765000000001"
+                - questions
+              value_type: object
+              variable: questions
+            - value_selector:
+                - "start1765000000001"
+                - sources
+              value_type: object
+              variable: sources
+        id: "prepare_code1765000000002"
+        position:
+          x: 400
+          y: 220
+        positionAbsolute:
+          x: 400
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 380
+      - data:
+          context:
+            enabled: false
+            variable_selector: []
+          desc: "把来源内容抽取为证据记录，只输出 JSON"
+          model:
+            completion_params:
+              temperature: 0.1
+            mode: chat
+            name: gpt-4o-mini
+            provider: langgenius/openai/openai
+          prompt_template:
+            - id: "evidence-sys-1765000000003"
+              role: system
+              text: |
+                你是具身智能行业研究助理，负责把公开网页检索结果结构化成本项目统一的证据记录。你必须严格遵守以下规则：
+
+                1. 只使用输入数据 sources 中的内容，禁止编造、推断或外推任何事实、数字或引文。
+                2. 每条证据对应一个事实主张 claim，并附上能直接支撑它的引文 evidence_quote（必须来自来源原文，尽量保留原句，最长 900 字符；没有直接引文就不生成该条）。
+                3. 证据按 questions 中的维度组织；某一维度没有任何来源能支撑时，跳过该维度，不要硬造。
+                4. 每条证据标注 geography（地域）、period（时期）、unit（单位，无单位则留空）、definition_scope（定义口径；来源采用的市场定义或边界，原样保留，口径不同也照实写，不要合并）。
+                5. category 只能取以下之一：market、technology、commercialization、supply_chain、industry。
+                6. risk_flags 只能从以下取值中选取（可为空数组）：blocked、conflict、possibly_stale、incomplete、missing_evidence。
+                7. 输出必须是合法 JSON，且只能是如下结构：
+                   {"evidence": [{"dimension": "", "claim": "", "source_url": "", "evidence_quote": "", "geography": "", "period": "", "unit": "", "definition_scope": "", "category": "", "risk_flags": []}]}
+                8. 除这个 JSON 对象外，不要输出任何其他文字、解释或 markdown 代码块标记。
+            - id: "evidence-user-1765000000003"
+              role: user
+              text: |
+                研究主题：{{#start1765000000001.topic#}}
+                地域口径：{{#start1765000000001.geography#}}
+                时间范围：{{#start1765000000001.time_range#}}
+
+                输入数据（JSON，包含研究问题与网页来源）：
+                {{#prepare_code1765000000002.payload#}}
+
+                请按系统提示的规则提取证据，只输出 {"evidence": [...]} 形式的 JSON。
+          selected: false
+          title: "证据提取 LLM"
+          type: llm
+          vision:
+            enabled: false
+        id: "llm1765000000003"
+        position:
+          x: 740
+          y: 220
+        positionAbsolute:
+          x: 740
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 380
+      - data:
+          desc: "解析 LLM 输出为真正的 JSON 数组，剥离推理块并容错处理代码块标记"
+          selected: false
+          title: "解析 JSON"
+          type: code
+          code_language: python3
+          code: |
+            import json
+            import re
+
+
+            def _strip_reasoning(text: str) -> str:
+                # 剥离 DeepSeek 等推理模型的 <think>...</think> 与 <!--dify-*-reasoning--> 标记
+                text = re.sub(r"<\s*think\s*>.*?<\s*/\s*think\s*>", "", text, flags=re.S)
+                text = re.sub(r"<!--.*?-->", "", text, flags=re.S)
+                return text
+
+
+            def main(llm_text: str) -> dict:
+                text = _strip_reasoning(llm_text or "").strip()
+                if text.startswith("```"):
+                    text = text.strip("`").strip()
+                    if text.startswith("json"):
+                        text = text[4:].strip()
+
+                data = None
+                try:
+                    data = json.loads(text)
+                except json.JSONDecodeError:
+                    start = text.find("{")
+                    end = text.rfind("}")
+                    if start != -1 and end > start:
+                        try:
+                            data = json.loads(text[start:end + 1])
+                        except json.JSONDecodeError:
+                            data = None
+
+                if isinstance(data, list):
+                    data = {"evidence": data}
+                evidence = data.get("evidence") if isinstance(data, dict) else None
+                if not isinstance(evidence, list):
+                    evidence = []
+                return {"evidence": evidence}
+          outputs:
+            evidence:
+              children: null
+              type: array[object]
+          variables:
+            - value_selector:
+                - "llm1765000000003"
+                - text
+              value_type: string
+              variable: llm_text
+        id: "parse_code1765000000004"
+        position:
+          x: 1080
+          y: 220
+        positionAbsolute:
+          x: 1080
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 380
+      - data:
+          desc: "输出 evidence 数组，供工作台证据矩阵使用"
+          outputs:
+            - variable: evidence
+              value_selector:
+                - "parse_code1765000000004"
+                - evidence
+          selected: false
+          title: "结束"
+          type: end
+        id: "end1765000000005"
+        position:
+          x: 1420
+          y: 220
+        positionAbsolute:
+          x: 1420
+          y: 220
+        selected: false
+        sourcePosition: right
+        targetPosition: left
+        type: custom
+        width: 243
+        height: 120
+    viewport:
+      x: 0
+      y: 0
+      zoom: 0.85
+  id: "wf-evidence-1765000000000"
+  name: "具身智能证据提取"
+  title: "具身智能证据提取"
+  type: workflow
+  version: "0.7.0"

@@ -297,7 +297,32 @@ def run_online_research(repo: Any, project_id: str, config: OnlineResearchConfig
     evidence = _fallback_evidence(project, questions, hits_by_dimension)
     if config.dify_evidence_api_key and hit_list:
         client = DifyWorkflowClient(config.dify_base_url, config.dify_evidence_api_key, config.timeout_seconds)
-        workflow = client.run({"topic": project.topic, "geography": project.geography, "time_range": project.time_range, "questions": [question.model_dump() for question in questions], "sources": [hit.__dict__ for hit in hit_list[:30]]}, user=user)
+        # Dify 的 json_object 输入变量只接受对象：数组统一包成 {"items": [...]}，由 workflow 内的代码节点解包。
+        # 显式序列化为 JSON 安全的 dict：SearchHit.published_date 是 date 对象，不能直接进 json.dumps。
+        workflow = client.run(
+            {
+                "topic": project.topic,
+                "geography": project.geography,
+                "time_range": project.time_range,
+                "questions": {"items": [question.model_dump() for question in questions]},
+                "sources": {
+                    "items": [
+                        {
+                            "title": hit.title,
+                            "url": hit.url,
+                            "content": hit.content,
+                            "published_date": hit.published_date.isoformat(),
+                            "source_role": hit.source_role,
+                            # 控制 Dify 云端运行时长：来源数限 8 条、正文截断到 2000 字符，
+                            # 避免真实长文把 blocking 运行顶到 504 网关超时（实测 5 条约 20s）
+                            "raw_content": hit.raw_content[:2000],
+                        }
+                        for hit in hit_list[:8]
+                    ]
+                },
+            },
+            user=user,
+        )
         if workflow.status == "succeeded":
             parsed = workflow.outputs.get("evidence") if isinstance(workflow.outputs, dict) else None
             if isinstance(parsed, list):
@@ -333,7 +358,16 @@ def generate_brief_with_dify(config: OnlineResearchConfig, project: Project, evi
     if not config.dify_brief_api_key or not evidence:
         return None
     client = DifyWorkflowClient(config.dify_base_url, config.dify_brief_api_key, config.timeout_seconds)
-    result = client.run({"topic": project.topic, "geography": project.geography, "time_range": project.time_range, "evidence": [item.model_dump(mode="json") for item in evidence if item.can_confirm and item.review_status.value == "confirmed"]}, user=user)
+    # 同证据提取：json_object 输入只接受对象，证据数组包成 {"items": [...]}。
+    result = client.run(
+        {
+            "topic": project.topic,
+            "geography": project.geography,
+            "time_range": project.time_range,
+            "evidence": {"items": [item.model_dump(mode="json") for item in evidence if item.can_confirm and item.review_status.value == "confirmed"]},
+        },
+        user=user,
+    )
     if result.status != "succeeded":
         return None
     return str(result.outputs.get("markdown") or result.outputs.get("brief_markdown") or result.outputs.get("text") or "") or None

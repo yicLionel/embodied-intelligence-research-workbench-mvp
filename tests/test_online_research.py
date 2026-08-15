@@ -171,3 +171,146 @@ def test_run_online_research_persists_deduped_sources_and_each_dimension_evidenc
     assert len(repo.list_sources(project_id)) == 1
     assert len(repo.list_evidence(project_id)) == 7
     assert all(item.review_status.value == "pending" for item in repo.list_evidence(project_id))
+
+
+def test_run_online_research_wraps_dify_array_inputs_in_items_object(tmp_path, monkeypatch):
+    """Dify json_object 输入只接受对象：questions/sources 必须包成 {"items": [...]}。"""
+    repo = WorkbenchRepository(tmp_path / "online.sqlite3")
+    project_id = create_online_project(repo, "具身智能", "中国", "2024–2026", "内部讨论")
+    questions = [question.model_copy(update={"approved": True}) for question in repo.list_questions(project_id)]
+    repo.save_questions(questions)
+
+    captured = {}
+
+    class FakeTavilyClient:
+        def __init__(self, api_key, timeout):
+            pass
+
+        def search(self, query):
+            return [SearchHit("行业报告", "https://example.com/r", "报告摘录。", date(2026, 1, 1))]
+
+    class FakeDifyWorkflowClient:
+        def __init__(self, base_url, api_key, timeout=60.0):
+            assert api_key == "df-ev"
+
+        def run(self, inputs, user="UT-01"):
+            captured["inputs"] = inputs
+            return online_research.WorkflowResult(
+                "run-1",
+                "succeeded",
+                {
+                    "evidence": [
+                        {
+                            "dimension": "市场规模与 CAGR",
+                            "claim": "市场规模约 100 亿元（示例）",
+                            "source_url": "https://example.com/r",
+                            "evidence_quote": "报告称市场规模约 100 亿元。",
+                            "geography": "中国",
+                            "period": "2024",
+                            "unit": "人民币亿元",
+                            "definition_scope": "示例口径",
+                            "category": "market",
+                            "risk_flags": [],
+                        }
+                    ]
+                },
+            )
+
+    monkeypatch.setattr(online_research, "TavilyClient", FakeTavilyClient)
+    monkeypatch.setattr(online_research, "DifyWorkflowClient", FakeDifyWorkflowClient)
+    result = run_online_research(
+        repo,
+        project_id,
+        OnlineResearchConfig(tavily_api_key="tv-test", dify_evidence_api_key="df-ev"),
+    )
+
+    assert result.status == "succeeded"
+    assert result.provider_mode == "tavily+dify"
+    assert set(captured["inputs"]) == {"topic", "geography", "time_range", "questions", "sources"}
+    assert isinstance(captured["inputs"]["questions"], dict)
+    assert captured["inputs"]["questions"]["items"] == [question.model_dump() for question in questions]
+    assert isinstance(captured["inputs"]["sources"], dict)
+    assert captured["inputs"]["sources"]["items"][0]["url"] == "https://example.com/r"
+
+
+def test_run_online_research_serializes_published_date_for_dify_payload(tmp_path, monkeypatch):
+    """真实 SearchHit.published_date 是 date 对象，发给 Dify 前必须转成 ISO 字符串，否则 json.dumps 崩溃。"""
+    import json
+
+    repo = WorkbenchRepository(tmp_path / "date.sqlite3")
+    project_id = create_online_project(repo, "四足机器人", "中国", "2024–2026", "内部讨论")
+    questions = [question.model_copy(update={"approved": True}) for question in repo.list_questions(project_id)]
+    repo.save_questions(questions)
+    captured = {}
+
+    class FakeTavilyClient:
+        def __init__(self, api_key, timeout):
+            pass
+
+        def search(self, query):
+            return [SearchHit("四足机器人报告", "https://example.com/quad", "四足机器人市场报告摘录。", date(2025, 6, 1), raw_content="四足机器人正文。")]
+
+    class FakeDifyWorkflowClient:
+        def __init__(self, base_url, api_key, timeout=60.0):
+            pass
+
+        def run(self, inputs, user="UT-01"):
+            captured["inputs"] = inputs
+            json.dumps(inputs)  # 必须可序列化
+            return online_research.WorkflowResult("run-1", "succeeded", {"evidence": []})
+
+    monkeypatch.setattr(online_research, "TavilyClient", FakeTavilyClient)
+    monkeypatch.setattr(online_research, "DifyWorkflowClient", FakeDifyWorkflowClient)
+    result = run_online_research(
+        repo,
+        project_id,
+        OnlineResearchConfig(tavily_api_key="tv-test", dify_evidence_api_key="df-ev"),
+    )
+    assert result.status == "succeeded"
+    payload_source = captured["inputs"]["sources"]["items"][0]
+    assert payload_source["published_date"] == "2025-06-01"
+    assert isinstance(payload_source["published_date"], str)
+
+
+def test_generate_brief_with_dify_wraps_evidence_in_items_object(tmp_path, monkeypatch):
+    from src.domain import EvidenceRecord, ReviewStatus
+
+    record = EvidenceRecord(
+        id="ev-1",
+        project_id="p-1",
+        question_id="q-1",
+        dimension="市场规模与 CAGR",
+        claim="示例主张",
+        source_id="src-1",
+        source_title="示例来源",
+        source_url="https://example.com/s",
+        source_accessible=True,
+        publication_date=date(2026, 1, 1),
+        evidence_quote="示例引文。",
+        geography="中国",
+        period="2024",
+        unit="人民币亿元",
+        definition_scope="示例口径",
+        category="market",
+        risk_flags=[],
+        review_status=ReviewStatus.CONFIRMED,
+    )
+    captured = {}
+
+    class FakeDifyWorkflowClient:
+        def __init__(self, base_url, api_key, timeout=60.0):
+            assert api_key == "df-br"
+
+        def run(self, inputs, user="UT-01"):
+            captured["inputs"] = inputs
+            return online_research.WorkflowResult("run-b", "succeeded", {"markdown": "# 简报"})
+
+    monkeypatch.setattr(online_research, "DifyWorkflowClient", FakeDifyWorkflowClient)
+    repo = WorkbenchRepository(tmp_path / "brief.sqlite3")
+    project_id = create_online_project(repo, "具身智能", "中国", "2024–2026", "内部讨论")
+    project = online_research.Project(id=project_id, topic="具身智能", geography="中国", time_range="2024–2026", purpose="内部讨论")
+    markdown = online_research.generate_brief_with_dify(OnlineResearchConfig(dify_brief_api_key="df-br"), project, [record])
+
+    assert markdown == "# 简报"
+    assert isinstance(captured["inputs"]["evidence"], dict)
+    assert captured["inputs"]["evidence"]["items"][0]["id"] == "ev-1"

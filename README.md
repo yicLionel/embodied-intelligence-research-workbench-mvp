@@ -117,6 +117,7 @@ src/
 ├── streamlit_app.py                 # Streamlit 入口与五阶段 UI
 ├── src/                             # 领域模型、存储、质量、在线 provider 与导出
 ├── tests/                           # 单元测试、AppTest 和 provider mock 测试
+├── dify/                            # Dify workflow DSL、搭建指南与验证脚本
 ├── docs/discovery-interviews.md     # 目标用户访谈与问题证据
 ├── outputs/                         # 产品设计与开发文档
 ├── requirements.txt                 # 运行时依赖
@@ -146,10 +147,12 @@ python3 -m venv .venv
 
 打开 Streamlit 输出的本地地址后：
 
-1. 点击侧栏的 **装载演示研究**。
+1. 点击侧栏的 **装载演示研究**，或先创建在线研究任务（见下）。
 2. 按“研究需求 → 研究框架 → 资料来源 → 证据矩阵 → 研究简报”浏览。
 3. 在证据矩阵中尝试确认合格证据和处理风险记录。
 4. 在研究简报页查看候选预览、正式简报门禁以及下载按钮。
+
+侧栏的 **选择已有项目** 可以重新打开本地 SQLite 里已有的项目（含演示项目和你创建过的在线项目）；应用重启后不会自动恢复上次项目，用它可以继续之前的审核。
 
 离线演示使用合成来源和合成引文，不代表真实行业数据。
 
@@ -232,6 +235,7 @@ set +a
 - [研究终端 UI 设计](docs/superpowers/specs/2026-08-13-research-terminal-ui-design.md)
 - [在线研究工作流设计](docs/superpowers/specs/2026-08-14-online-research-workflow-design.md)
 - [在线研究工作流实施计划](docs/superpowers/plans/2026-08-14-online-research-workflow.md)
+- [云端 Dify 搭建指南](dify/setup-guide.md)（导入 workflow DSL、取 key、验证脚本）
 - [本次 README 与发布设计](docs/superpowers/specs/2026-08-14-versioned-github-release-readme-design.md)
 
 ## 已知限制与非目标

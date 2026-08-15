@@ -38,7 +38,32 @@ if st.sidebar.button("装载演示研究", key="load_demo"):
     st.session_state.project_id = load_demo_project(repo)
     st.session_state.pop("preview", None)
     st.session_state.pop("formal", None)
+    st.session_state.pop("formal_markdown", None)
+    st.session_state.pop("online_result", None)
     st.rerun()
+
+existing_projects = repo.list_projects()
+if existing_projects:
+    st.sidebar.markdown("### 选择已有项目")
+    current_id = st.session_state.get("project_id")
+    project_options = {project.id: f"{project.topic} · {project.geography}" for project in existing_projects}
+
+    def project_label(project_id: str) -> str:
+        return project_options[project_id] + ("　← 当前" if project_id == current_id else "")
+
+    selected_project_id = st.sidebar.selectbox(
+        "已有项目（含在线与演示）",
+        list(project_options),
+        format_func=project_label,
+        key="project_switch_select",
+    )
+    if st.sidebar.button("打开所选项目", key="open_selected_project"):
+        st.session_state.project_id = selected_project_id
+        st.session_state.pop("preview", None)
+        st.session_state.pop("formal", None)
+        st.session_state.pop("formal_markdown", None)
+        st.session_state.pop("online_result", None)
+        st.rerun()
 
 if "project_id" not in st.session_state:
     st.session_state.project_id = None
