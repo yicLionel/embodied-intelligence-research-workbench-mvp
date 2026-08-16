@@ -1,263 +1,19 @@
-# Embodied Intelligence Research Workbench / 具身智能研究工作台
+# Embodied Intelligence Research Workbench
 
-> **Bilingual README**: English first, followed by the complete Chinese version.
-> **中英双语说明**：本文件先提供英文版，后附完整中文版。
+[![中文](https://img.shields.io/badge/README-%E4%B8%AD%E6%96%87-blue?style=flat-square)](README.md)
+[![English](https://img.shields.io/badge/README-English-blue?style=flat-square)](README.en.md)
 
-[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![Streamlit](https://img.shields.io/badge/Streamlit-1.51%2B-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
-[![Tests](https://img.shields.io/badge/tests-pytest-0A9EDC)](tests/)
-
----
-
-## English
-
-### Embodied Intelligence Research Workbench
-
-A research workbench for embodied intelligence industry research, designed for excellent boutique FA interns and junior analysts. It connects the research scope, a seven-dimension question framework, public web sources, an evidence matrix, and research briefs on one auditable chain. Human judgment stays focused on source accessibility, citation quality, methodology, risk, and fact verification.
-
-> This repository is a runnable MVP. Offline demos do not require provider API keys; real-time web research requires a Tavily API key, and Dify workflows are optional enhancements. The project is currently at the single-user, research-validation stage, not a production-grade investment research system.
-
-### Why this project
-
-Embodied intelligence research often requires switching back and forth between search, reports, company documents, and internal notes. The truly time-consuming part is not just writing; it is tracing every conclusion back to an accessible source, checking publication date, region, time range, units, and definitions, and then handling conflicts or evidence gaps.
-
-This MVP structures the repetitive organization work while preserving human research judgment:
-
-- Define the research scope and question framework before starting search.
-- Save sources and direct quotations before generating candidate conclusions.
-- Present numbers, methodologies, and source conflicts side by side instead of letting the model silently choose.
-- A record cannot be confirmed without an accessible source, direct quotation, or citation.
-- Candidate previews help inspect structure but cannot be exported.
-- Formal briefs use only human-confirmed, traceable evidence.
-
-### Current status
-
-- Product form: single-user Streamlit research terminal.
-- Research scope: embodied intelligence, defaulting to a China-centric view while retaining global technology comparisons.
-- Offline capabilities: synthetic demo project, local SQLite storage, five-stage navigation, risk-priority evidence matrix, candidate/formal briefs, and Markdown/CSV export.
-- Online capabilities: seven-dimension research task creation, custom questions, Chinese/English search query generation per question, Tavily public web search, URL normalization and deduplication, candidate evidence fallback, and optional Dify evidence extraction and brief generation.
-- Review process: framework approval, source checks, evidence status confirmation, and formal brief export are all human-controlled.
-
-### Core workflow
-
-```mermaid
-flowchart LR
-    A[Research request] --> B[Seven-dimension framework]
-    B -->|All questions approved| C[Sources]
-    C --> D[Evidence matrix]
-    D -->|Accessible + direct quote + citation| E[Candidate preview]
-    D -->|Human confirmation| F[Formal brief]
-    F --> G[Markdown / CSV export]
-```
-
-The app sidebar contains five stages:
-
-1. **Research Request**: view topic, regional scope, time range, purpose, and project status.
-2. **Research Framework**: review questions from seven fixed dimensions; add custom questions (for example, “representative teams”); approve, adjust, or delete each question.
-3. **Sources**: inspect source roles, dates, and accessibility; online projects start automatic retrieval from here.
-4. **Evidence Matrix**: review facts, direct quotations, citations, and review status sorted by risk priority.
-5. **Research Brief**: first generate a pending-review candidate preview that cannot be exported; after facts are confirmed, generate and export the formal brief.
-
-The seven fixed research dimensions are:
-
-- Market definition and boundaries
-- Market size and CAGR
-- Industry chain and key segments
-- Competitive landscape and benchmark companies
-- Technology trends and capability evolution
-- Financing activities and commercialization progress
-- Risks, controversies, and key assumptions
-
-### Evidence and review gates
-
-#### Evidence records
-
-Each evidence record contains the factual claim, the related question and dimension, source, publication date, direct quotation, region, time period, unit, definition methodology, risk tags, and review status. The domain model uses immutable Pydantic models, and SQLite handles local persistence.
-
-#### What can be confirmed
-
-A record can only move from `pending` to `confirmed` when all of the following are true:
-
-- The source is accessible.
-- A non-empty direct quotation exists.
-- A source URL or local reference exists.
-- The record has not been excluded.
-
-#### Automatic risk flags
-
-- `blocked`: source is inaccessible or missing a direct quotation.
-- `conflict`: methodology or source conflict exists.
-- `possibly_stale`: market/industry-chain materials are older than 24 months; other applicable commercialization materials are older than 12 months; technology, standards, and historical materials are not automatically flagged as stale.
-- `incomplete`: market-type records are missing region, time period, unit, or definition methodology.
-- `missing_evidence`: the provider did not supply enough evidence to support the record.
-
-Risk tags are used for sorting and human review; they do not automatically replace research judgment.
-
-### Technical architecture
-
-```text
-Streamlit UI
-├── five-stage pages and state interaction
-├── human review gates, KPIs, and risk queue
-└── Markdown / CSV downloads
-
-src/
-├── domain.py          Pydantic contracts for projects, questions, sources, and evidence
-├── storage.py         SQLite schema and WorkbenchRepository
-├── online_research.py Tavily / Dify clients, query generation, deduplication, and fallback
-├── quality.py         risk determination and risk-priority sorting
-├── briefs.py          candidate preview, formal brief, and sentence mapping validation
-├── exporting.py       formal Markdown and evidence CSV serialization
-├── demo.py            synthetic offline demo project
-└── ui.py              terminal theme, header, KPIs, and risk display
-```
-
-External provider responsibilities:
-
-- **Tavily**: public web search; results enter the local source and candidate evidence flow.
-- **Dify evidence workflow**: optional evidence structuring enhancement; Tavily fallback is kept if it fails.
-- **Dify brief workflow**: optional formal brief copy enhancement; falls back to local verifiable Markdown generation if it fails.
-- **Streamlit + local code**: owns the final review, risk rules, persistence, mapping validation, and export gate.
-
-### Directory structure
-
-```text
-.
-├── streamlit_app.py                 # Streamlit entry point and five-stage UI
-├── src/                             # domain models, storage, quality, online providers, and export
-├── tests/                           # unit tests, AppTest, and provider mock tests
-├── dify/                            # Dify workflow DSL, setup guide, and verification script
-├── docs/discovery-interviews.md     # target user interviews and question evidence
-├── outputs/                         # product design and development docs
-├── requirements.txt                 # runtime dependencies
-├── requirements-dev.txt             # test and lint dependencies
-├── .env.example                     # local environment variable template
-└── .streamlit/config.toml           # dark research terminal theme
-```
-
-Runtime-generated `data/`, `.venv/`, `.streamlit/secrets.toml`, and local `.env` are excluded by `.gitignore`.
-
-### Local development
-
-#### 1. Create a virtual environment and install dependencies
-
-Python 3.12 is required (Python 3.11+ may work, but development and validation are based on 3.12).
-
-```bash
-python3 -m venv .venv
-.venv/bin/python -m pip install -r requirements-dev.txt
-```
-
-#### 2. Start the app
-
-```bash
-.venv/bin/streamlit run streamlit_app.py
-```
-
-After opening the local address printed by Streamlit:
-
-1. Click **Load Demo Research** in the sidebar, or create an online research task first (see below).
-2. Browse through “Research Request → Research Framework → Sources → Evidence Matrix → Research Brief”.
-3. Try confirming qualifying evidence and handling risk records in the evidence matrix.
-4. View the candidate preview, formal brief gate, and download buttons on the Research Brief page.
-
-The sidebar's **Select Existing Project** can reopen projects already stored in local SQLite (including the demo project and any online projects you have created). After an app restart, the last project is not automatically restored; use this option to continue previous work.
-
-The offline demo uses synthetic sources and synthetic quotations and does not represent real industry data.
-
-### Online research configuration
-
-The app reads configuration from process environment variables by default and also supports Streamlit Secrets. It does not automatically load a `.env` file; if you use a local `.env`, load it explicitly:
-
-```bash
-cp .env.example .env
-set -a
-source .env
-set +a
-.venv/bin/streamlit run streamlit_app.py
-```
-
-Variables in `.env.example`:
-
-| Variable | Required | Purpose |
-| --- | --- | --- |
-| `DIFY_BASE_URL` | No | Dify API URL, default `https://api.dify.ai/v1` |
-| `TAVILY_API_KEY` | Required for live search | Enables Tavily public web search |
-| `DIFY_PLAN_API_KEY` | No | Reserved planning workflow config; current version generates the seven-dimension framework locally |
-| `DIFY_EVIDENCE_API_KEY` | No | Enables Dify evidence structuring enhancement |
-| `DIFY_BRIEF_API_KEY` | No | Enables Dify formal brief copy enhancement |
-| `ONLINE_RESEARCH_TIMEOUT` | No | Provider request timeout in seconds, default `60` |
-| `APP_DB_PATH` | No | SQLite path, default `data/workbench.sqlite3` |
-
-Configuration behavior:
-
-- Without `TAVILY_API_KEY`: the offline demo still runs, but online research tasks show a configuration block.
-- With only `TAVILY_API_KEY`: web search works, and candidate evidence is generated using the local fallback.
-- Adding `DIFY_EVIDENCE_API_KEY`: tries to structure evidence with Dify and falls back to Tavily excerpts on failure.
-- Adding `DIFY_BRIEF_API_KEY`: the formal brief may use Dify-generated copy and falls back to local Markdown on failure.
-
-Do not commit real keys to the repository, README, test fixtures, or logs. If using Streamlit Secrets, write the same variables to the local `.streamlit/secrets.toml`; that file is ignored.
-
-### Tests and quality checks
-
-Tests do not call real Tavily, Dify, or other providers; online paths use mock transports and local temporary SQLite.
-
-```bash
-# Full test suite
-.venv/bin/python -m pytest -q
-
-# Code quality
-.venv/bin/ruff check .
-```
-
-Test coverage includes:
-
-- Pydantic domain models and evidence confirmation gates.
-- SQLite restart recovery, source exclusion, and evidence status.
-- Candidate preview and formal brief status filtering.
-- Markdown / CSV export eligibility.
-- Market field completeness, stale risk, blocked evidence, and risk sorting.
-- Streamlit AppTest for five-stage navigation, KPIs, risk, and brief pages.
-- Tavily query generation, URL deduplication, Dify blocking workflow requests, JSON output parsing, missing configuration, and online fallback.
-
-### Iteration versions
-
-The release branch is `codex/offline-workbench`; each milestone is preserved in Git history:
-
-| Version | Node | Highlights |
-| --- | --- | --- |
-| `v0.1.0-offline` | `1967e60` | Offline research workbench, SQLite, evidence review, and export |
-| `v0.2.0-terminal` | `2ad4266` | Research terminal UI, KPIs, risk queue, and five-stage navigation |
-| `v0.3.0-online` | `4b695bd` | Tavily search, Dify adapter, and online research run |
-| `v0.3.1-fallback` | `40e3f33` | Provider fallback, timeout, and error recovery |
-| `v0.4.0-readme` | Final docs commit | Complete run instructions and release index |
-
-Release nodes are fast-forward ordered; do not force-push over history.
-
-### Project documentation
-
-- [MVP product design specification](outputs/2026-08-10-embodied-intelligence-research-workbench-design.md)
-- [Product development document](outputs/2026-08-11-embodied-intelligence-product-development-document.md)
-- [User discovery interviews](docs/discovery-interviews.md)
-- [Offline MVP design](docs/superpowers/specs/2026-08-12-offline-workbench-design.md)
-- [Offline MVP implementation plan](docs/superpowers/plans/2026-08-12-offline-workbench.md)
-- [Research terminal UI design](docs/superpowers/specs/2026-08-13-research-terminal-ui-design.md)
-- [Online research workflow design](docs/superpowers/specs/2026-08-14-online-research-workflow-design.md)
-- [Online research workflow implementation plan](docs/superpowers/plans/2026-08-14-online-research-workflow.md)
-- [Cloud Dify setup guide](dify/setup-guide.md) (import workflow DSL, get keys, verify scripts)
-- [README and release design](docs/superpowers/specs/2026-08-14-versioned-github-release-readme-design.md)
-
----
-
-## 中文
-
-### 具身智能研究工作台
+> 本 README 以中文为主，另有英文版 [README.en.md](README.en.md)。
 
 面向精品 FA 实习生和初级分析师的具身智能行业研究工作台。它把研究范围、七维问题框架、公开网页来源、证据矩阵和研究简报放在同一条可审计链路上，让人工判断集中在来源可访问性、引用、口径、风险和事实确认上。
 
 > 当前仓库是可运行的 MVP。离线演示不需要 provider 密钥；实时网络研究需要 Tavily API key，Dify workflow 为可选增强。项目仍处于单用户、研究验证阶段，不是生产级投研系统。
 
-### 为什么做这个项目
+[![Python](https://img.shields.io/badge/Python-3.12%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
+[![Streamlit](https://img.shields.io/badge/Streamlit-1.51%2B-FF4B4B?logo=streamlit&logoColor=white)](https://streamlit.io/)
+[![Tests](https://img.shields.io/badge/tests-pytest-0A9EDC)](tests/)
+
+## 为什么做这个项目
 
 具身智能研究通常需要在搜索、报告、公司材料和内部笔记之间反复切换。真正耗时的部分不只是写作，而是把每个结论追溯到可访问来源，核对发布日期、地域、时间范围、单位和定义口径，再处理冲突或证据缺口。
 
@@ -270,7 +26,7 @@ Release nodes are fast-forward ordered; do not force-push over history.
 - 候选预览可以帮助检查结构，但不能导出。
 - 正式简报只使用人工确认且可追溯的证据。
 
-### 当前状态
+## 当前状态
 
 - 产品形态：Streamlit 单用户研究终端。
 - 研究范围：具身智能，默认中国主视角并保留全球技术对照。
@@ -278,7 +34,7 @@ Release nodes are fast-forward ordered; do not force-push over history.
 - 在线能力：七维研究任务创建、自定义问题追加、按问题生成中英文检索式、Tavily 公开网页检索、URL 规范化去重、候选证据 fallback，以及可选 Dify 证据抽取和简报生成。
 - 审核方式：框架批准、来源检查、证据状态确认和正式简报导出均由人工控制。
 
-### 核心工作流
+## 核心工作流
 
 ```mermaid
 flowchart LR
@@ -308,13 +64,13 @@ flowchart LR
 - 融资活动与商业化进展
 - 风险、争议与关键假设
 
-### 证据与审核门禁
+## 证据与审核门禁
 
-#### 证据记录
+### 证据记录
 
 每条证据包含事实主张、所属问题和维度、来源、发布日期、直接引文、地域、时期、单位、定义口径、风险标签和审核状态。领域模型使用不可变 Pydantic 模型，SQLite 负责本地持久化。
 
-#### 可以确认的证据
+### 可以确认的证据
 
 只有同时满足以下条件，记录才可以从 `pending` 变为 `confirmed`：
 
@@ -323,7 +79,7 @@ flowchart LR
 - 存在来源 URL 或本地 reference。
 - 记录没有被剔除。
 
-#### 自动风险提示
+### 自动风险提示
 
 - `blocked`：来源不可访问或缺少直接引文。
 - `conflict`：存在口径或来源冲突。
@@ -333,7 +89,7 @@ flowchart LR
 
 风险标签用于排序和人工复核，不会自动替代研究判断。
 
-### 技术架构
+## 技术架构
 
 ```text
 Streamlit UI
@@ -359,7 +115,7 @@ src/
 - **Dify brief workflow**：可选的正式简报文案增强；失败时使用本地可验证 Markdown 生成。
 - **Streamlit + 本地代码**：拥有最终审核、风险规则、持久化、映射校验和导出门禁。
 
-### 目录结构
+## 目录结构
 
 ```text
 .
@@ -377,9 +133,9 @@ src/
 
 运行时生成的 `data/`、`.venv/`、`.streamlit/secrets.toml` 和本地 `.env` 已被 `.gitignore` 排除。
 
-### 本地运行
+## 本地运行
 
-#### 1. 创建虚拟环境并安装依赖
+### 1. 创建虚拟环境并安装依赖
 
 需要 Python 3.12（Python 3.11+ 可能可用，但项目开发与验证以 3.12 为准）。
 
@@ -388,7 +144,7 @@ python3 -m venv .venv
 .venv/bin/python -m pip install -r requirements-dev.txt
 ```
 
-#### 2. 启动应用
+### 2. 启动应用
 
 ```bash
 .venv/bin/streamlit run streamlit_app.py
@@ -405,7 +161,7 @@ python3 -m venv .venv
 
 离线演示使用合成来源和合成引文，不代表真实行业数据。
 
-### 在线研究配置
+## 在线研究配置
 
 应用默认从进程环境变量读取配置，也支持 Streamlit Secrets。应用不会自动读取 `.env` 文件；如果本地使用 `.env`，需要显式加载：
 
@@ -438,7 +194,7 @@ set +a
 
 不要把真实 key 写入仓库、README、测试 fixture 或日志。若使用 Streamlit Secrets，可将相同变量写入本地 `.streamlit/secrets.toml`；该文件已被忽略。
 
-### 测试与质量检查
+## 测试与质量检查
 
 测试不调用真实 Tavily、Dify 或其他 provider，在线路径使用 mock transport 和本地临时 SQLite。
 
@@ -460,7 +216,7 @@ set +a
 - Streamlit AppTest 的五阶段导航、KPI、风险和简报页面。
 - Tavily 查询生成、URL 去重、Dify blocking workflow 请求、JSON 输出解析、配置缺失和在线 fallback。
 
-### 迭代版本
+## 迭代版本
 
 发布分支为 `codex/offline-workbench`，每个节点都保留在 Git 提交历史中：
 
@@ -474,7 +230,7 @@ set +a
 
 版本节点的发布顺序是 fast-forward；不使用 force push 覆盖历史。
 
-### 项目文档
+## 项目文档
 
 - [MVP 产品设计规格](outputs/2026-08-10-embodied-intelligence-research-workbench-design.md)
 - [产品开发文档](outputs/2026-08-11-embodied-intelligence-product-development-document.md)
@@ -486,3 +242,27 @@ set +a
 - [在线研究工作流实施计划](docs/superpowers/plans/2026-08-14-online-research-workflow.md)
 - [云端 Dify 搭建指南](dify/setup-guide.md)（导入 workflow DSL、取 key、验证脚本）
 - [本次 README 与发布设计](docs/superpowers/specs/2026-08-14-versioned-github-release-readme-design.md)
+
+## 已知限制与非目标
+
+当前版本明确不提供：
+
+- 账号、权限、多用户协作或团队工作区。
+- 项目 sourcing、公司推荐或自动投资结论。
+- 多行业通用模板、自动 PPT 和生产级报告编排。
+- 真实数据质量保证；离线演示数据全部为合成数据。
+- durable database、备份恢复服务或生产部署配置。
+- 自动读取 `.env`、自动上传本地文件或用户补充材料摄取 UI。
+
+在线检索结果仍可能出现网页不可访问、发布日期缺失、搜索噪声、provider 超时和模型结构化失败。系统会保留已完成结果、显示错误摘要并将不满足门禁的记录留在待审核或阻塞状态；研究者仍需回查原文并负责最终判断。
+
+## 安全与数据边界
+
+- 不要上传客户、交易、雇主或其他机密材料。
+- provider key 只放在环境变量或 Streamlit Secrets，不进入 Git。
+- 本地 SQLite 适合演示和单用户验证，不应被当作生产级主数据源。
+- 在线 provider 处理范围、保留期限和费用取决于对应服务条款；在使用真实材料前，应先完成组织内部的安全和合规评估。
+
+## License
+
+当前仓库尚未声明开源许可证。除非仓库所有者另行授权，请将其视为研究原型，不要直接用于商业分发或生产部署。
